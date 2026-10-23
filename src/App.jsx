@@ -109,6 +109,269 @@ function getPhaseStatus(startPhase, startMonth) {
   return { phase: currentPhase, maxed: false, daysUntilNext, nextDate: nextPhaseDate };
 }
 
+// ---------- Profile avatars (original artwork, drawn as SVG) ----------
+const _eyes = (y = 55, dx = 12, ink = "#1c1a2e") =>
+  `<ellipse cx="${50 - dx}" cy="${y}" rx="4.3" ry="5.6" fill="${ink}"/><ellipse cx="${50 + dx}" cy="${y}" rx="4.3" ry="5.6" fill="${ink}"/>` +
+  `<circle cx="${50 - dx + 1.6}" cy="${y - 2.2}" r="1.7" fill="#fff"/><circle cx="${50 + dx + 1.6}" cy="${y - 2.2}" r="1.7" fill="#fff"/>` +
+  `<circle cx="${50 - dx - 1.4}" cy="${y + 2}" r="0.8" fill="#fff" opacity=".8"/><circle cx="${50 + dx - 1.4}" cy="${y + 2}" r="0.8" fill="#fff" opacity=".8"/>`;
+const _blush = (y = 63, dx = 19, c = "#ff8fa3") =>
+  `<ellipse cx="${50 - dx}" cy="${y}" rx="5" ry="3" fill="${c}" opacity=".55"/><ellipse cx="${50 + dx}" cy="${y}" rx="5" ry="3" fill="${c}" opacity=".55"/>`;
+const _smile = (y = 66, w = 5, ink = "#5b2d2d") =>
+  `<path d="M${50 - w} ${y} Q50 ${y + 5} ${50 + w} ${y}" fill="none" stroke="${ink}" stroke-width="2" stroke-linecap="round"/>`;
+
+const AVATARS = [
+  {
+    id: "ninja", label: "Ninja", bg: "#2f4a78",
+    svg:
+      `<path d="M22 100 Q22 80 50 80 Q78 80 78 100Z" fill="#232a3b"/>` +
+      `<circle cx="50" cy="52" r="32" fill="#232a3b"/>` +
+      `<rect x="24" y="44" width="52" height="22" rx="11" fill="#f6d3b0"/>` +
+      `<path d="M18 40 Q50 28 82 40 L82 49 Q50 38 18 49Z" fill="#d64545"/>` +
+      `<rect x="43" y="36.5" width="14" height="9" rx="2" fill="#c8d2e0"/><path d="M47 41 h6" stroke="#6b7a90" stroke-width="2" stroke-linecap="round"/>` +
+      `<path d="M80 43 L96 36 L92 46 L97 54 L82 49Z" fill="#b83a3a"/>` +
+      _eyes(56, 11) + _blush(62, 17, "#ff8f8f"),
+  },
+  {
+    id: "cowboy", label: "Cowboy", bg: "#e8b36a",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#3e7fd1"/>` +
+      `<path d="M38 82 L50 96 L62 82Z" fill="#d64545"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f6d3b0"/>` +
+      `<path d="M23 54 Q22 40 34 36 L66 36 Q78 40 77 54 Q70 44 50 44 Q30 44 23 54Z" fill="#6b3f1d"/>` +
+      `<ellipse cx="50" cy="38" rx="42" ry="9" fill="#9a6232"/>` +
+      `<path d="M31 38 Q29 12 50 11 Q71 12 69 38Z" fill="#b8763c"/>` +
+      `<path d="M31 35 Q50 41 69 35 L69 31 Q50 37 31 31Z" fill="#5b3414"/>` +
+      `<circle cx="50" cy="35" r="2" fill="#f2c14e"/>` +
+      _eyes(58, 11) + _blush(66, 18) + _smile(68, 6),
+  },
+  {
+    id: "cowgirl", label: "Cowgirl", bg: "#f2a7b8",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#e8788e"/>` +
+      `<path d="M38 82 L50 95 L62 82Z" fill="#fff"/>` +
+      `<ellipse cx="21" cy="66" rx="8" ry="14" fill="#7a4a2a"/><ellipse cx="79" cy="66" rx="8" ry="14" fill="#7a4a2a"/>` +
+      `<circle cx="21" cy="80" r="3.5" fill="#e8788e"/><circle cx="79" cy="80" r="3.5" fill="#e8788e"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f8dcc0"/>` +
+      `<path d="M23 54 Q22 40 34 36 L66 36 Q78 40 77 54 Q72 46 60 45 Q50 49 40 45 Q28 46 23 54Z" fill="#7a4a2a"/>` +
+      `<ellipse cx="50" cy="37" rx="42" ry="9" fill="#d9a05f"/>` +
+      `<path d="M31 37 Q29 12 50 11 Q71 12 69 37Z" fill="#e6b777"/>` +
+      `<path d="M31 34 Q50 40 69 34 L69 30 Q50 36 31 30Z" fill="#e8788e"/>` +
+      `<path d="M50 28.5 l1.7 3.4 3.7.5-2.7 2.6.6 3.7-3.3-1.8-3.3 1.8.6-3.7-2.7-2.6 3.7-.5z" fill="#fff"/>` +
+      _eyes(58, 11) + _blush(66, 18) + _smile(68, 6),
+  },
+  {
+    id: "puppy", label: "Puppy", bg: "#bfe0f5",
+    svg:
+      `<path d="M12 44 Q6 76 28 80 Q36 62 32 42Z" fill="#6b4226"/><path d="M88 44 Q94 76 72 80 Q64 62 68 42Z" fill="#6b4226"/>` +
+      `<circle cx="50" cy="54" r="31" fill="#d9a066"/>` +
+      `<path d="M50 30 Q64 30 70 44 Q60 36 50 38Z" fill="#c68a4f" opacity=".0"/>` +
+      `<circle cx="64" cy="48" r="11" fill="#6b4226" opacity=".9"/>` +
+      `<ellipse cx="50" cy="68" rx="15" ry="11" fill="#f6e3c8"/>` +
+      `<ellipse cx="50" cy="61" rx="5.5" ry="4" fill="#2a1e1e"/><circle cx="48.5" cy="59.8" r="1.2" fill="#fff"/>` +
+      `<path d="M50 65 V70 M43 70 Q50 76 57 70" fill="none" stroke="#2a1e1e" stroke-width="1.8" stroke-linecap="round"/>` +
+      `<path d="M46 72 Q50 82 54 72Z" fill="#ff7d93"/>` +
+      _eyes(50, 13) + _blush(62, 24, "#ff9aa8"),
+  },
+  {
+    id: "kitty", label: "Kitty", bg: "#ffe3a3",
+    svg:
+      `<path d="M20 44 L24 14 L46 30Z" fill="#f08a3c"/><path d="M80 44 L76 14 L54 30Z" fill="#f08a3c"/>` +
+      `<path d="M26 36 L28 22 L40 31Z" fill="#ffb5c0"/><path d="M74 36 L72 22 L60 31Z" fill="#ffb5c0"/>` +
+      `<ellipse cx="50" cy="58" rx="33" ry="29" fill="#f6993f"/>` +
+      `<path d="M50 30 V40 M42 31 L44 39 M58 31 L56 39" stroke="#c9691f" stroke-width="3" stroke-linecap="round"/>` +
+      `<ellipse cx="50" cy="70" rx="13" ry="9" fill="#fff3df"/>` +
+      `<path d="M46.5 63 H53.5 L50 67Z" fill="#ff7d93"/>` +
+      `<path d="M50 67 V70 M44 71 Q47 74 50 70 Q53 74 56 71" fill="none" stroke="#6b3a1a" stroke-width="1.7" stroke-linecap="round"/>` +
+      `<path d="M30 66 L16 63 M30 70 L16 72 M70 66 L84 63 M70 70 L84 72" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>` +
+      _eyes(54, 14, "#1c1a2e") + _blush(65, 24),
+  },
+  {
+    id: "fox", label: "Fox", bg: "#cfe8d5",
+    svg:
+      `<path d="M16 46 L22 12 L46 30Z" fill="#e8662a"/><path d="M84 46 L78 12 L54 30Z" fill="#e8662a"/>` +
+      `<path d="M24 36 L26 22 L38 31Z" fill="#3a2a2a"/><path d="M76 36 L74 22 L62 31Z" fill="#3a2a2a"/>` +
+      `<path d="M50 90 Q16 72 14 52 Q14 34 50 34 Q86 34 86 52 Q84 72 50 90Z" fill="#f0742f"/>` +
+      `<path d="M50 86 Q28 74 16 58 Q34 56 50 70 Q66 56 84 58 Q72 74 50 86Z" fill="#fff6ea"/>` +
+      `<ellipse cx="50" cy="69" rx="4.5" ry="3.4" fill="#2a1e1e"/>` +
+      `<path d="M50 72 Q50 76 46 77 M50 72 Q50 76 54 77" fill="none" stroke="#2a1e1e" stroke-width="1.6" stroke-linecap="round"/>` +
+      _eyes(54, 14) + _blush(64, 25),
+  },
+  {
+    id: "panda", label: "Panda", bg: "#d6e4f3",
+    svg:
+      `<circle cx="22" cy="26" r="12" fill="#22252b"/><circle cx="78" cy="26" r="12" fill="#22252b"/>` +
+      `<ellipse cx="50" cy="56" rx="35" ry="31" fill="#fbfbfd"/>` +
+      `<ellipse cx="36" cy="54" rx="9.5" ry="12" fill="#22252b" transform="rotate(20 36 54)"/><ellipse cx="64" cy="54" rx="9.5" ry="12" fill="#22252b" transform="rotate(-20 64 54)"/>` +
+      `<ellipse cx="37" cy="54" rx="4.2" ry="5.4" fill="#fff"/><ellipse cx="63" cy="54" rx="4.2" ry="5.4" fill="#fff"/>` +
+      `<circle cx="37.5" cy="54.5" r="2.8" fill="#1c1a2e"/><circle cx="62.5" cy="54.5" r="2.8" fill="#1c1a2e"/>` +
+      `<circle cx="38.5" cy="53.2" r="1" fill="#fff"/><circle cx="63.5" cy="53.2" r="1" fill="#fff"/>` +
+      `<ellipse cx="50" cy="65" rx="5" ry="3.6" fill="#22252b"/>` +
+      `<path d="M50 68 Q50 73 45 73 M50 68 Q50 73 55 73" fill="none" stroke="#22252b" stroke-width="1.8" stroke-linecap="round"/>` +
+      _blush(68, 22, "#ff9aa8"),
+  },
+  {
+    id: "bunny", label: "Bunny", bg: "#e6d9f5",
+    svg:
+      `<ellipse cx="36" cy="22" rx="9" ry="22" fill="#fbf4f6"/><ellipse cx="64" cy="22" rx="9" ry="22" fill="#fbf4f6"/>` +
+      `<ellipse cx="36" cy="24" rx="4.6" ry="15" fill="#ffb5c8"/><ellipse cx="64" cy="24" rx="4.6" ry="15" fill="#ffb5c8"/>` +
+      `<ellipse cx="50" cy="60" rx="33" ry="29" fill="#fbf4f6"/>` +
+      `<path d="M46.5 64 H53.5 L50 68Z" fill="#ff8fa6"/>` +
+      `<path d="M50 68 V71 M44 72 Q47 75 50 71 Q53 75 56 72" fill="none" stroke="#9a5a6a" stroke-width="1.7" stroke-linecap="round"/>` +
+      `<rect x="46" y="72.5" width="3.5" height="5" rx="1" fill="#fff" stroke="#e5cdd6" stroke-width=".8"/><rect x="50.5" y="72.5" width="3.5" height="5" rx="1" fill="#fff" stroke="#e5cdd6" stroke-width=".8"/>` +
+      _eyes(57, 14) + _blush(66, 25),
+  },
+  {
+    id: "robot", label: "Robot", bg: "#cdd9ea",
+    svg:
+      `<path d="M50 20 V10" stroke="#5a6b84" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="8" r="4.5" fill="#d64545"/>` +
+      `<rect x="14" y="48" width="8" height="18" rx="3" fill="#7d8da6"/><rect x="78" y="48" width="8" height="18" rx="3" fill="#7d8da6"/>` +
+      `<rect x="20" y="20" width="60" height="58" rx="16" fill="#aebcd2"/>` +
+      `<rect x="27" y="30" width="46" height="30" rx="10" fill="#1d2c45"/>` +
+      `<circle cx="39" cy="45" r="6" fill="#6fe3ff"/><circle cx="61" cy="45" r="6" fill="#6fe3ff"/>` +
+      `<circle cx="40.8" cy="43" r="2" fill="#fff"/><circle cx="62.8" cy="43" r="2" fill="#fff"/>` +
+      `<path d="M38 69 H62" stroke="#5a6b84" stroke-width="3" stroke-linecap="round"/><path d="M44 66 V72 M50 66 V72 M56 66 V72" stroke="#5a6b84" stroke-width="1.6"/>` +
+      `<circle cx="27" cy="70" r="2" fill="#7d8da6"/><circle cx="73" cy="70" r="2" fill="#7d8da6"/>`,
+  },
+  {
+    id: "frog", label: "Froggy", bg: "#d7efc2",
+    svg:
+      `<circle cx="30" cy="34" r="14" fill="#5cb85c"/><circle cx="70" cy="34" r="14" fill="#5cb85c"/>` +
+      `<ellipse cx="50" cy="62" rx="36" ry="28" fill="#6cc76a"/>` +
+      `<circle cx="30" cy="34" r="9.5" fill="#fff"/><circle cx="70" cy="34" r="9.5" fill="#fff"/>` +
+      `<circle cx="31" cy="35" r="5.6" fill="#1c1a2e"/><circle cx="69" cy="35" r="5.6" fill="#1c1a2e"/>` +
+      `<circle cx="32.8" cy="33" r="1.9" fill="#fff"/><circle cx="70.8" cy="33" r="1.9" fill="#fff"/>` +
+      `<path d="M28 64 Q50 82 72 64" fill="none" stroke="#2f6b34" stroke-width="2.4" stroke-linecap="round"/>` +
+      `<circle cx="45" cy="55" r="1.3" fill="#2f6b34"/><circle cx="55" cy="55" r="1.3" fill="#2f6b34"/>` +
+      _blush(66, 27, "#ff9aa8"),
+  },
+
+  {
+    id: "locs-boy", label: "Locs Boy", bg: "#f2c36b",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#3e7fd1"/>` +
+      `<g stroke="#1d1512" stroke-width="7" stroke-linecap="round" fill="none"><path d="M22 44 Q14 58 17 78"/><path d="M29 38 Q22 58 25 82"/><path d="M78 44 Q86 58 83 78"/><path d="M71 38 Q78 58 75 82"/><path d="M36 33 Q30 50 32 70" opacity=".0"/></g>` +
+      `<circle cx="50" cy="56" r="28" fill="#8d5a3b"/>` +
+      `<path d="M22 50 Q20 28 36 22 Q50 16 64 22 Q80 28 78 50 Q72 40 62 38 Q50 42 38 38 Q28 40 22 50Z" fill="#1d1512"/>` +
+      `<g stroke="#1d1512" stroke-width="6.5" stroke-linecap="round"><path d="M32 24 L28 12"/><path d="M42 20 L40 8"/><path d="M52 19 L52 7"/><path d="M62 20 L65 8"/><path d="M71 25 L77 14"/></g>` +
+      _eyes(58, 11) + `<ellipse cx="31" cy="66" rx="5" ry="3" fill="#e0707a" opacity=".4"/><ellipse cx="69" cy="66" rx="5" ry="3" fill="#e0707a" opacity=".4"/>` + _smile(68, 6, "#3b1d12"),
+  },
+  {
+    id: "locs-girl", label: "Locs Girl", bg: "#c8a6ec",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#e8788e"/>` +
+      `<g stroke="#1d1512" stroke-width="7" stroke-linecap="round" fill="none"><path d="M22 42 Q10 62 14 90"/><path d="M29 36 Q20 62 24 94"/><path d="M78 42 Q90 62 86 90"/><path d="M71 36 Q80 62 76 94"/></g>` +
+      `<circle cx="14" cy="90" r="3" fill="#f2c14e"/><circle cx="24" cy="94" r="3" fill="#6fe3ff"/><circle cx="86" cy="90" r="3" fill="#f2c14e"/><circle cx="76" cy="94" r="3" fill="#6fe3ff"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#7a4a2d"/>` +
+      `<path d="M22 50 Q20 28 36 22 Q50 16 64 22 Q80 28 78 50 Q72 41 62 39 Q50 44 38 39 Q28 41 22 50Z" fill="#1d1512"/>` +
+      `<g stroke="#1d1512" stroke-width="6.5" stroke-linecap="round"><path d="M34 23 L30 11"/><path d="M45 19 L43 7"/><path d="M56 19 L58 7"/><path d="M67 23 L71 12"/></g>` +
+      `<path d="M23 40 Q50 28 77 40 L77 46 Q50 35 23 46Z" fill="#f2c14e"/>` +
+      `<circle cx="22" cy="64" r="2.6" fill="#f2c14e"/><circle cx="78" cy="64" r="2.6" fill="#f2c14e"/>` +
+      _eyes(58, 11) + `<ellipse cx="31" cy="66" rx="5" ry="3" fill="#ff8fa3" opacity=".5"/><ellipse cx="69" cy="66" rx="5" ry="3" fill="#ff8fa3" opacity=".5"/>` + _smile(68, 6, "#3b1d12"),
+  },
+  {
+    id: "puff-girl", label: "Curly Puff", bg: "#9ad9d0",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#f2c14e"/>` +
+      `<circle cx="50" cy="34" r="30" fill="#1d1512"/><circle cx="24" cy="48" r="13" fill="#1d1512"/><circle cx="76" cy="48" r="13" fill="#1d1512"/>` +
+      `<circle cx="50" cy="58" r="27" fill="#6f4529"/>` +
+      `<path d="M24 46 Q50 30 76 46 Q70 40 62 40 Q50 44 38 40 Q30 40 24 46Z" fill="#1d1512"/>` +
+      `<path d="M21 42 Q50 24 79 42 L78 48 Q50 32 22 48Z" fill="#d64545"/>` +
+      `<circle cx="22" cy="68" r="3.2" fill="#fff" stroke="#e8c3a0" stroke-width=".8"/><circle cx="78" cy="68" r="3.2" fill="#fff" stroke="#e8c3a0" stroke-width=".8"/>` +
+      _eyes(59, 11) + `<ellipse cx="31" cy="67" rx="5" ry="3" fill="#ff8fa3" opacity=".5"/><ellipse cx="69" cy="67" rx="5" ry="3" fill="#ff8fa3" opacity=".5"/>` + _smile(69, 6, "#3b1d12"),
+  },
+  {
+    id: "fade-boy", label: "Fade Boy", bg: "#a9c7f0",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#2f9e6a"/><path d="M39 82 Q50 90 61 82" fill="none" stroke="#1f7a50" stroke-width="3"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#7a4a2d"/>` +
+      `<path d="M23 50 Q20 26 50 24 Q80 26 77 50 Q72 40 64 39 Q50 36 36 39 Q28 40 23 50Z" fill="#1d1512"/>` +
+      `<path d="M26 47 Q30 38 38 38" fill="none" stroke="#3a2a22" stroke-width="2"/>` +
+      `<g fill="none" stroke="#2a2f45" stroke-width="2.4"><circle cx="39" cy="58" r="8"/><circle cx="61" cy="58" r="8"/><path d="M47 58 H53"/></g>` +
+      _eyes(58, 11) + `<ellipse cx="29" cy="68" rx="4.5" ry="2.8" fill="#e0707a" opacity=".4"/><ellipse cx="71" cy="68" rx="4.5" ry="2.8" fill="#e0707a" opacity=".4"/>` + _smile(69, 6, "#3b1d12"),
+  },
+  {
+    id: "boy", label: "Boy", bg: "#bde3a8",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#6c5fc7"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f6d3b0"/>` +
+      `<path d="M22 52 Q18 24 40 20 Q50 12 62 20 Q82 24 78 52 Q74 42 66 40 L58 33 Q50 41 42 34 L34 40 Q26 42 22 52Z" fill="#8a5a2b"/>` +
+      `<g stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"><path d="M36 21 L33 10"/><path d="M48 17 L49 6"/><path d="M60 19 L65 9"/></g>` +
+      _eyes(58, 11) + _blush(66, 18) + `<path d="M43 67 Q50 75 57 67Z" fill="#8a2f3b"/><path d="M45.5 69.5 H54.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>`,
+  },
+  {
+    id: "girl", label: "Girl", bg: "#f7c6a3",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#2fa3a0"/>` +
+      `<path d="M72 34 Q96 40 90 74 Q86 90 76 88 Q84 66 70 46Z" fill="#b5532a"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f8dcc0"/>` +
+      `<path d="M22 54 Q18 24 50 21 Q82 24 78 54 Q74 44 66 40 Q56 46 44 38 Q30 42 22 54Z" fill="#b5532a"/>` +
+      `<path d="M30 40 Q42 30 62 36" fill="none" stroke="#c96a3a" stroke-width="2" opacity=".7"/>` +
+      `<rect x="70" y="35" width="9" height="7" rx="3" fill="#e8788e" transform="rotate(25 74 38)"/>` +
+      _eyes(58, 11) + _blush(66, 18) + _smile(68, 6),
+  },
+
+  {
+    id: "dragon", label: "Dragon", bg: "#f5a77a",
+    svg:
+      `<path d="M20 100 Q22 82 50 82 Q78 82 80 100Z" fill="#3d9e6a"/>` +
+      `<path d="M26 40 L20 16 L40 30Z M74 40 L80 16 L60 30Z" fill="#f2c14e"/>` +
+      `<path d="M38 28 L42 18 L47 27Z M47 26 L50 14 L55 26Z M54 27 L58 18 L62 28Z" fill="#2f7d52"/>` +
+      `<circle cx="50" cy="56" r="29" fill="#5ac27e"/>` +
+      `<ellipse cx="50" cy="68" rx="17" ry="12" fill="#a8e6b8"/>` +
+      `<circle cx="44" cy="68" r="2" fill="#2f7d52"/><circle cx="56" cy="68" r="2" fill="#2f7d52"/>` +
+      _eyes(52, 12, "#2a1a2e") + `<ellipse cx="29" cy="62" rx="4.5" ry="3" fill="#ff8fa3" opacity=".55"/><ellipse cx="71" cy="62" rx="4.5" ry="3" fill="#ff8fa3" opacity=".55"/>` +
+      `<path d="M43 74 Q50 79 57 74" fill="none" stroke="#2f7d52" stroke-width="2" stroke-linecap="round"/>`,
+  },
+  {
+    id: "samurai", label: "Samurai", bg: "#d96a5a",
+    svg:
+      `<path d="M18 100 Q20 82 50 82 Q80 82 82 100Z" fill="#8b1f2b"/><path d="M34 82 L50 94 L66 82" fill="none" stroke="#f2c14e" stroke-width="3"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f6d3b0"/>` +
+      `<path d="M22 50 Q20 22 50 20 Q80 22 78 50 Q72 40 64 38 Q50 34 36 38 Q28 40 22 50Z" fill="#1d1512"/>` +
+      `<circle cx="50" cy="12" r="7" fill="#1d1512"/><rect x="45" y="17" width="10" height="4" rx="2" fill="#d64545"/>` +
+      `<path d="M26 38 Q50 28 74 38 L74 44 Q50 34 26 44Z" fill="#f2f2f2"/><circle cx="50" cy="37" r="3" fill="#d64545"/>` +
+      _eyes(58, 11) + _blush(66, 18) + `<path d="M45 69 Q50 72 55 69" fill="none" stroke="#5b2d2d" stroke-width="2" stroke-linecap="round"/>` +
+      `<path d="M42 64 Q50 61 58 64" fill="none" stroke="#1d1512" stroke-width="1.8" stroke-linecap="round" opacity="0"/>`,
+  },
+  {
+    id: "ninja-girl", label: "Ninja Girl", bg: "#b184d8",
+    svg:
+      `<path d="M22 100 Q22 80 50 80 Q78 80 78 100Z" fill="#5a2a7a"/>` +
+      `<circle cx="50" cy="52" r="32" fill="#5a2a7a"/>` +
+      `<rect x="24" y="44" width="52" height="22" rx="11" fill="#f8dcc0"/>` +
+      `<path d="M18 40 Q50 28 82 40 L82 49 Q50 38 18 49Z" fill="#f2c14e"/>` +
+      `<rect x="43" y="36.5" width="14" height="9" rx="2" fill="#c8d2e0"/><path d="M47 41 h6" stroke="#6b7a90" stroke-width="2" stroke-linecap="round"/>` +
+      `<path d="M80 43 L98 30 L94 44 L99 56 L82 49Z" fill="#d9a53a"/>` +
+      `<circle cx="22" cy="30" r="7" fill="#5a2a7a"/><circle cx="22" cy="30" r="3" fill="#e8788e"/>` +
+      _eyes(56, 11) + _blush(62, 17, "#ff8fa3"),
+  },
+  {
+    id: "viking", label: "Viking", bg: "#8fb8d8",
+    svg:
+      `<path d="M18 100 Q20 82 50 82 Q80 82 82 100Z" fill="#7a5a3a"/><path d="M30 84 Q50 96 70 84" fill="#e8e8f0" opacity=".9"/>` +
+      `<circle cx="50" cy="56" r="28" fill="#f6d3b0"/>` +
+      `<path d="M26 62 Q28 90 50 94 Q72 90 74 62 Q66 74 50 74 Q34 74 26 62Z" fill="#d9822b"/>` +
+      `<path d="M22 50 Q18 30 50 28 Q82 30 78 50 Q70 42 50 42 Q30 42 22 50Z" fill="#d9822b"/>` +
+      `<path d="M20 38 Q22 20 50 18 Q78 20 80 38 L80 44 Q50 34 20 44Z" fill="#a9b4c6"/><rect x="20" y="38" width="60" height="6" fill="#7d8aa0"/>` +
+      `<path d="M22 40 Q8 36 10 14 Q18 24 26 30Z M78 40 Q92 36 90 14 Q82 24 74 30Z" fill="#f4ecd8"/>` +
+      _eyes(56, 11) + _blush(63, 19) + `<path d="M44 68 Q50 73 56 68" fill="#8a2f3b" stroke="#8a2f3b" stroke-width="1.5" stroke-linecap="round"/>`,
+  },
+];
+
+const avatarById = (id) => AVATARS.find((a) => a.id === id) || null;
+
+function Avatar({ id, size = 76, fallback }) {
+  const a = avatarById(id);
+  if (!a) return fallback || null;
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={a.label}
+      style={{ display: "block", borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
+      <rect width="100" height="100" fill={a.bg} />
+      <g dangerouslySetInnerHTML={{ __html: a.svg }} />
+    </svg>
+  );
+}
+
 // ---------- Small UI bits ----------
 const Card = ({ children, style }) => (
   <div style={{
@@ -308,6 +571,7 @@ function MeetingsTab({ counters, setCounters, fines, setFines, profile }) {
   };
 
   const remaining = Math.max(0, (fines.totalOwed || 0) - fines.paid);
+  const lastPayment = fines.log && fines.log.length ? fines.log[fines.log.length - 1].amt : 0;
 
   const Counter = ({ label, field, icon, goal }) => (
     <Card>
@@ -364,14 +628,20 @@ function MeetingsTab({ counters, setCounters, fines, setFines, profile }) {
 
       <SectionLabel>Fines &amp; Fees</SectionLabel>
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
           <div>
             <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>PAID</div>
-            <div style={{ fontFamily: HELV, fontSize: 24, fontWeight: 700, color: C.teal }}>${fines.paid.toFixed(2)}</div>
+            <div style={{ fontFamily: HELV, fontSize: 20, fontWeight: 700, color: C.teal }}>${lastPayment.toFixed(2)}</div>
+            <div style={{ fontFamily: HELV, fontSize: 10.5, color: C.inkSoft }}>last payment</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>AMOUNT PAID</div>
+            <div style={{ fontFamily: HELV, fontSize: 20, fontWeight: 700, color: C.goldDeep }}>${fines.paid.toFixed(2)}</div>
+            <div style={{ fontFamily: HELV, fontSize: 10.5, color: C.inkSoft }}>running total</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>REMAINING</div>
-            <div style={{ fontFamily: HELV, fontSize: 24, fontWeight: 700, color: C.rust }}>${remaining.toFixed(2)}</div>
+            <div style={{ fontFamily: HELV, fontSize: 20, fontWeight: 700, color: C.rust }}>${remaining.toFixed(2)}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -653,13 +923,14 @@ function ProfileTab({ profile, setProfile }) {
   const [name, setName] = useState(profile.name || "");
   const [soberDate, setSoberDate] = useState(profile.soberDate || "");
   const [bio, setBio] = useState(profile.bio || "");
+  const [avatar, setAvatar] = useState(profile.avatar || "");
   const [phaseStart, setPhaseStart] = useState(profile.phaseStart || 2);
   const [phaseStartMonth, setPhaseStartMonth] = useState(profile.phaseStartMonth || "");
 
   const initials = (profile.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
   const save = async () => {
-    const next = { name: name.trim() || "Anonymous", soberDate, bio: bio.trim(), phaseStart: Number(phaseStart), phaseStartMonth };
+    const next = { name: name.trim() || "Anonymous", soberDate, bio: bio.trim(), avatar, phaseStart: Number(phaseStart), phaseStartMonth };
     setProfile(next);
     await setJSON("profile:me", next, false);
     setEditing(false);
@@ -674,6 +945,27 @@ function ProfileTab({ profile, setProfile }) {
             <div style={{ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 }}>NAME</div>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
               style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: HELV, fontSize: 14 }} />
+          </div>
+          <div>
+            <div style={{ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 6 }}>PROFILE PICTURE</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+              {AVATARS.map((a) => (
+                <button key={a.id} type="button" aria-label={a.label} aria-pressed={avatar === a.id}
+                  onClick={() => setAvatar(a.id)}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
+                  <div style={{ borderRadius: "50%", padding: 2, border: `3px solid ${avatar === a.id ? C.goldDeep : "transparent"}` }}>
+                    <Avatar id={a.id} size={48} />
+                  </div>
+                  <div style={{ fontFamily: HELV, fontSize: 10.5, color: avatar === a.id ? C.goldDeep : C.inkSoft, fontWeight: avatar === a.id ? 700 : 500, marginTop: 2 }}>{a.label}</div>
+                </button>
+              ))}
+            </div>
+            {avatar && (
+              <button type="button" onClick={() => setAvatar("")}
+                style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontFamily: HELV, fontSize: 12, color: C.inkSoft, textDecoration: "underline" }}>
+                Use my initials instead
+              </button>
+            )}
           </div>
           <div>
             <div style={{ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 }}>SOBER DATE</div>
@@ -714,11 +1006,15 @@ function ProfileTab({ profile, setProfile }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Card style={{ textAlign: "center" }}>
-        <div style={{
-          width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(135deg, ${C.gold}, ${C.teal})`,
-          display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
-          fontFamily: HELV, fontSize: 26, fontWeight: 700, color: "#fff"
-        }}>{initials}</div>
+        <div style={{ margin: "0 auto 12px", width: 76, height: 76 }}>
+          <Avatar id={profile.avatar} size={76} fallback={
+            <div style={{
+              width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(135deg, ${C.gold}, ${C.teal})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: HELV, fontSize: 26, fontWeight: 700, color: "#fff"
+            }}>{initials}</div>
+          } />
+        </div>
         <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink }}>{profile.name}</div>
         {profile.bio && <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, marginTop: 4 }}>{profile.bio}</div>}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, color: C.gold }}>
