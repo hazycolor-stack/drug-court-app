@@ -1,6 +1,6 @@
 // Minimal service worker — caches the app shell so it opens reliably
 // even on a flaky connection. Not a full offline data solution.
-const CACHE_NAME = "dca-shell-v1";
+const CACHE_NAME = "dca-shell-v2";
 const SHELL_FILES = ["/", "/index.html", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
