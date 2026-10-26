@@ -4,6 +4,7 @@ import {
   DollarSign, Calendar, Search, ChevronDown, ChevronLeft, ChevronRight, ExternalLink,
   Award, Edit2, X, Check, Trash2
 } from "lucide-react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { getJSON, setJSON } from "./storage.js";
 import { HANDBOOK, HANDBOOK_QUICK } from "./handbook.js";
 
@@ -1220,6 +1221,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.paper, display: "flex", justifyContent: "center" }}>
       <FontLoader />
+      <SpeedInsights />
       <div style={{ width: "100%", maxWidth: 460, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
         {/* Header */}
         <div style={{ padding: "22px 18px 14px", position: "sticky", top: 0, background: C.paper, zIndex: 5, borderBottom: `1px solid ${C.line}` }}>
