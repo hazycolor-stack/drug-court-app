@@ -184,6 +184,11 @@ create policy "upload own photos" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'profile-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 
+drop policy if exists "read own photos" on storage.objects;
+create policy "read own photos" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'profile-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
 drop policy if exists "update own photos" on storage.objects;
 create policy "update own photos" on storage.objects
   for update to authenticated

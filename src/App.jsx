@@ -1016,7 +1016,8 @@ function ProfileTab({ profile, saveProfile, theme, setTheme, userId, onChangeSlo
       const url = await uploadPhoto(userId, file, kind);
       await saveProfile(kind === "avatar" ? { ...profile, avatarUrl: url } : { ...profile, headerUrl: url });
     } catch (e) {
-      setSaveError("That photo didn't upload. Try again or pick a different photo.");
+      console.error("photo upload failed", e);
+      setSaveError(`That photo didn't upload (${(e && e.message) || "unknown error"}). Try again or pick a different photo.`);
     } finally {
       setPhotoBusy("");
     }

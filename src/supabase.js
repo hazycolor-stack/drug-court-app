@@ -86,7 +86,7 @@ export async function uploadPhoto(userId, file, kind) {
     : await compressImage(file, { maxSize: 1200 });
   const path = `${userId}/${kind}-${Date.now()}.jpg`;
   const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, blob, {
-    contentType: "image/jpeg", upsert: true, cacheControl: "31536000",
+    contentType: "image/jpeg", upsert: false, cacheControl: "31536000",
   });
   if (error) throw error;
   return supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
