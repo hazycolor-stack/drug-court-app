@@ -4,6 +4,7 @@ import {
   DollarSign, Calendar, Search, ChevronDown, ChevronLeft, ChevronRight, ExternalLink,
   Award, Edit2, X, Check, Trash2
 } from "lucide-react";
+import { Analytics } from "@vercel/analytics/react";
 import { getJSON, setJSON } from "./storage.js";
 import { HANDBOOK, HANDBOOK_QUICK } from "./handbook.js";
 
@@ -1261,6 +1262,7 @@ export default function App() {
           ))}
         </div>
       </div>
+      <Analytics />
     </div>
   );
 }
