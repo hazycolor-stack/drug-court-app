@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Home, Users, BookOpen, FileText, User, Plus, Minus,
   DollarSign, Calendar, Search, ChevronDown, ChevronLeft, ChevronRight, ExternalLink,
-  Award, Edit2, X, Check, Trash2
+  Award, Edit2, X, Check, Trash2, Camera, Share, MoreVertical, LogOut
 } from "lucide-react";
 import { getJSON, setJSON } from "./storage.js";
 import { HANDBOOK, HANDBOOK_QUICK } from "./handbook.js";
+import { supabase, profileFromRow, rowFromProfile, uploadPhoto } from "./supabase.js";
 
 // ---------- Fonts ----------
 const FontLoader = () => (
@@ -979,7 +980,7 @@ function HandbookTab() {
   );
 }
 
-function ProfileTab({ profile, setProfile, theme, setTheme }) {
+function ProfileTab({ profile, saveProfile, theme, setTheme, userId, onChangeSlot }) {
   const [editing, setEditing] = useState(!profile.name);
   const [name, setName] = useState(profile.name || "");
   const [soberDate, setSoberDate] = useState(profile.soberDate || "");
@@ -990,11 +991,35 @@ function ProfileTab({ profile, setProfile, theme, setTheme }) {
 
   const initials = (profile.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [photoBusy, setPhotoBusy] = useState("");
+  const isStaff = profile.role === "staff" || profile.role === "admin";
+
   const save = async () => {
-    const next = { name: name.trim() || "Anonymous", soberDate, bio: bio.trim(), avatar, phaseStart: Number(phaseStart), phaseStartMonth };
-    setProfile(next);
-    await setJSON("profile:me", next, false);
-    setEditing(false);
+    const next = { ...profile, name: name.trim() || "Anonymous", soberDate, bio: bio.trim(), avatar, phaseStart: Number(phaseStart), phaseStartMonth };
+    if (avatar !== profile.avatar) next.avatarUrl = ""; // picking a cartoon replaces an uploaded photo
+    setSaving(true); setSaveError("");
+    try {
+      await saveProfile(next);
+      setEditing(false);
+    } catch (e) {
+      setSaveError("Couldn't save. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onPhoto = (kind) => async (file) => {
+    setPhotoBusy(kind); setSaveError("");
+    try {
+      const url = await uploadPhoto(userId, file, kind);
+      await saveProfile(kind === "avatar" ? { ...profile, avatarUrl: url } : { ...profile, headerUrl: url });
+    } catch (e) {
+      setSaveError("That photo didn't upload. Try again or pick a different photo.");
+    } finally {
+      setPhotoBusy("");
+    }
   };
 
   if (editing) {
@@ -1055,7 +1080,11 @@ function ProfileTab({ profile, setProfile, theme, setTheme }) {
               You phase up every 9 months. We'll count down to your next phase automatically.
             </div>
           </div>
-          <Button variant="primary" onClick={save}><Check size={15} />Save Profile</Button>
+          {saveError && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E" }}>{saveError}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="primary" onClick={save} disabled={saving}><Check size={15} />{saving ? "Saving…" : "Save Profile"}</Button>
+            {profile.name && <Button variant="ghost" onClick={() => setEditing(false)}><X size={15} />Cancel</Button>}
+          </div>
         </Card>
       </div>
     );
@@ -1064,45 +1093,77 @@ function ProfileTab({ profile, setProfile, theme, setTheme }) {
   const days = daysSince(profile.soberDate);
   const phaseStatus = getPhaseStatus(profile.phaseStart, profile.phaseStartMonth);
 
+  const avatarFallback = (
+    <div style={{
+      width: 92, height: 92, borderRadius: "50%", background: `linear-gradient(135deg, ${C.gold}, ${C.teal})`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: HELV, fontSize: 30, fontWeight: 700, color: "#fff"
+    }}>{initials}</div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Card style={{ textAlign: "center" }}>
-        <div style={{ margin: "0 auto 12px", width: 76, height: 76 }}>
-          <Avatar id={profile.avatar} size={76} fallback={
-            <div style={{
-              width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(135deg, ${C.gold}, ${C.teal})`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: HELV, fontSize: 26, fontWeight: 700, color: "#fff"
-            }}>{initials}</div>
-          } />
+      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, overflow: "hidden" }}>
+        {/* Header (cover) photo */}
+        <div style={{
+          position: "relative", height: 150,
+          background: profile.headerUrl
+            ? `url("${profile.headerUrl}") center / cover no-repeat`
+            : `linear-gradient(135deg, ${C.gold}, ${C.teal} 60%, ${C.tealDeep})`,
+        }}>
+          <PhotoButton label="Change header photo" onFile={onPhoto("header")} style={{ position: "absolute", right: 10, bottom: 10 }} />
+          {photoBusy === "header" && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: HELV, fontWeight: 700 }}>Uploading…</div>
+          )}
         </div>
-        <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink }}>{profile.name}</div>
-        {profile.bio && <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, marginTop: 4 }}>{profile.bio}</div>}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, color: C.gold }}>
-          <Award size={16} />
-          <span style={{ fontFamily: HELV, fontSize: 13, fontWeight: 700 }}>
-            {days === null ? "No date set" : `${days} days sober`}
-          </span>
-        </div>
-        {phaseStatus && (
-          <div style={{ fontFamily: HELV, fontSize: 13, color: C.teal, fontWeight: 700, marginTop: 6 }}>
-            Phase {phaseStatus.phase}{!phaseStatus.maxed && ` · ${phaseStatus.daysUntilNext} days to phase up`}
+
+        {/* Profile photo overlapping the header */}
+        <div style={{ textAlign: "center", padding: "0 16px 18px" }}>
+          <div style={{ position: "relative", width: 100, height: 100, margin: "-50px auto 10px" }}>
+            <div style={{ width: 100, height: 100, borderRadius: "50%", border: `4px solid ${C.card}`, background: C.card, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="" style={{ width: 92, height: 92, borderRadius: "50%", objectFit: "cover" }} />
+              ) : (
+                <Avatar id={profile.avatar} size={92} fallback={avatarFallback} />
+              )}
+            </div>
+            <PhotoButton label="Change profile photo" onFile={onPhoto("avatar")} style={{ position: "absolute", right: -2, bottom: 2, width: 32, height: 32, border: `2px solid ${C.card}` }} />
+            {photoBusy === "avatar" && (
+              <div style={{ position: "absolute", inset: 4, borderRadius: "50%", background: "rgba(0,0,0,0.45)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: HELV, fontSize: 12, fontWeight: 700 }}>Uploading…</div>
+            )}
           </div>
-        )}
-      </Card>
+          <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink }}>{profile.name}</div>
+          {profile.program && <div style={{ fontFamily: HELV, fontSize: 13, color: C.inkSoft, marginTop: 2 }}>{profile.program}{profile.state ? ` · ${profile.state}` : ""}</div>}
+          {profile.bio && <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, marginTop: 6 }}>{profile.bio}</div>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, color: C.gold }}>
+            <Award size={16} />
+            <span style={{ fontFamily: HELV, fontSize: 13, fontWeight: 700 }}>
+              {days === null ? "No sober date set" : `${days} days sober`}
+            </span>
+          </div>
+          {phaseStatus && (
+            <div style={{ fontFamily: HELV, fontSize: 13, color: C.teal, fontWeight: 700, marginTop: 6 }}>
+              Phase {phaseStatus.phase}{!phaseStatus.maxed && ` · ${phaseStatus.daysUntilNext} days to phase up`}
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <Button variant="ghost" onClick={() => setEditing(true)}><Edit2 size={13} />Edit Profile</Button>
+            {profile.avatarUrl && (
+              <Button variant="ghost" onClick={() => saveProfile({ ...profile, avatarUrl: "" })}><X size={13} />Remove photo</Button>
+            )}
+          </div>
+          {saveError && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E", marginTop: 8 }}>{saveError}</div>}
+        </div>
+      </div>
+
+      <Feed isStaff={isStaff} />
+
+      <TestingSlotCard profile={profile} onChangeSlot={onChangeSlot} isStaff={isStaff} />
       <ThemePicker theme={theme} setTheme={setTheme} />
-      <button
-        aria-label="Edit Profile"
-        onClick={() => setEditing(true)}
-        style={{
-          position: "absolute", left: 16, bottom: 88, width: 32, height: 32, borderRadius: "50%",
-          border: `1px solid ${C.line}`, background: C.card, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 6px rgba(19,37,64,0.12)"
-        }}
-      >
-        <Edit2 size={13} color={C.ink} />
-      </button>
+
+      <div style={{ textAlign: "center", paddingTop: 4 }}>
+        <Button variant="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={14} />Log out</Button>
+      </div>
     </div>
   );
 }
@@ -1255,6 +1316,621 @@ function CalendarTab({ profile }) {
   );
 }
 
+// ---------- Accounts: sign up / log in ----------
+const US_STATES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+  "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+  "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+  "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+  "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+  "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah",
+  "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
+];
+
+const fieldLabel = () => ({ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 });
+const fieldInput = () => ({
+  width: "100%", padding: 11, borderRadius: 10, border: `1px solid ${C.line}`,
+  fontFamily: HELV, fontSize: 15, background: "#fff", color: "#132540",
+});
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display: "block" }}>
+      <div style={fieldLabel()}>{label}</div>
+      {children}
+    </label>
+  );
+}
+
+function SlotPicker({ value, onChange, disabled }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      {[["morning", "Morning"], ["afternoon", "Afternoon"]].map(([id, label]) => {
+        const on = value === id;
+        return (
+          <button key={id} type="button" disabled={disabled} onClick={() => onChange(id)}
+            style={{
+              padding: "11px 8px", borderRadius: 10, cursor: disabled ? "default" : "pointer",
+              border: `2px solid ${on ? C.gold : C.line}`, background: on ? C.paperDeep : "#fff",
+              fontFamily: HELV, fontSize: 14.5, fontWeight: 700, color: on ? C.ink : C.inkSoft,
+            }}>{label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function friendlyAuthError(err) {
+  const m = (err && err.message) || "Something went wrong. Please try again.";
+  if (/invalid login credentials/i.test(m)) return "Email or password is wrong.";
+  if (/email not confirmed/i.test(m)) return "Please confirm your email first — check your inbox for the link.";
+  if (/already registered|already been registered/i.test(m)) return "That email already has an account. Try logging in.";
+  if (/rate limit/i.test(m)) return "Too many tries. Please wait a few minutes and try again.";
+  if (/not authorized/i.test(m)) return "We couldn't send the email to that address yet. Please try again later.";
+  return m;
+}
+
+function AuthScreen() {
+  const [mode, setMode] = useState("signup"); // signup | signin | forgot | sent
+  const [sentMsg, setSentMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [f, setF] = useState({ name: "", email: "", password: "", phone: "", state: "", program: "", slot: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (mode === "signup") {
+      if (!f.name.trim()) return setError("Please enter your name.");
+      if (!f.state) return setError("Please pick your state.");
+      if (!f.program.trim()) return setError("Please enter your court program.");
+      if (!f.slot) return setError("Please pick morning or afternoon testing.");
+      if (f.password.length < 8) return setError("Password needs at least 8 characters.");
+    }
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: f.email.trim(),
+          password: f.password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: {
+              full_name: f.name.trim(), phone: f.phone.trim(), state: f.state,
+              program: f.program.trim(), testing_slot: f.slot,
+            },
+          },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setSentMsg(`We sent a link to ${f.email.trim()}. Tap it to confirm your email, then come back and log in.`);
+          setMode("sent");
+        }
+      } else if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email: f.email.trim(), password: f.password });
+        if (error) throw error;
+      } else if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(f.email.trim(), { redirectTo: window.location.origin });
+        if (error) throw error;
+        setSentMsg(`If ${f.email.trim()} has an account, we sent it a link to reset your password.`);
+        setMode("sent");
+      }
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title = { signup: "Create your account", signin: "Welcome back", forgot: "Reset your password", sent: "Check your email" }[mode];
+
+  return (
+    <div style={{ padding: "8px 0 40px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <Card>
+        <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 4 }}>{title}</div>
+        {mode === "signup" && (
+          <div style={{ fontFamily: HELV, fontSize: 13.5, color: C.inkSoft, marginBottom: 14, lineHeight: 1.45 }}>
+            Your account keeps your info safe and lets you get testing alerts and court announcements.
+            Anything already saved in the app on this phone carries over.
+          </div>
+        )}
+        {mode === "sent" ? (
+          <div>
+            <div style={{ fontFamily: HELV, fontSize: 14.5, color: C.ink, lineHeight: 1.5, marginBottom: 14 }}>{sentMsg}</div>
+            <Button variant="primary" onClick={() => { setMode("signin"); setError(""); }}>Go to log in</Button>
+          </div>
+        ) : (
+          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: mode === "signup" ? 0 : 10 }}>
+            {mode === "signup" && (
+              <Field label="FULL NAME">
+                <input value={f.name} onChange={set("name")} autoComplete="name" style={fieldInput()} />
+              </Field>
+            )}
+            <Field label="EMAIL">
+              <input type="email" required value={f.email} onChange={set("email")} autoComplete="email" style={fieldInput()} />
+            </Field>
+            {mode !== "forgot" && (
+              <Field label={mode === "signup" ? "PASSWORD (8+ characters)" : "PASSWORD"}>
+                <input type="password" required value={f.password} onChange={set("password")}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"} style={fieldInput()} />
+              </Field>
+            )}
+            {mode === "signup" && (
+              <>
+                <Field label="PHONE (optional)">
+                  <input type="tel" value={f.phone} onChange={set("phone")} autoComplete="tel" style={fieldInput()} />
+                </Field>
+                <Field label="STATE">
+                  <select value={f.state} onChange={set("state")} style={fieldInput()}>
+                    <option value="">Choose your state</option>
+                    {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+                <Field label="COURT PROGRAM">
+                  <input value={f.program} onChange={set("program")} placeholder="e.g., DeSoto County Adult Drug Court" style={fieldInput()} />
+                </Field>
+                <div>
+                  <div style={fieldLabel()}>TESTING TIME</div>
+                  <SlotPicker value={f.slot} onChange={(slot) => setF({ ...f, slot })} />
+                  <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, marginTop: 6 }}>
+                    You can only change this once every 6 months.
+                  </div>
+                </div>
+              </>
+            )}
+            {error && (
+              <div style={{ fontFamily: HELV, fontSize: 13.5, color: "#B3261E", background: "#FDECEA", borderRadius: 10, padding: "9px 11px" }}>{error}</div>
+            )}
+            <Button variant="primary" disabled={busy} style={{ justifyContent: "center", padding: "12px 16px", fontSize: 15 }}>
+              {busy ? "One moment…" : mode === "signup" ? "Create account" : mode === "signin" ? "Log in" : "Send reset link"}
+            </Button>
+          </form>
+        )}
+      </Card>
+      {mode !== "sent" && (
+        <div style={{ textAlign: "center", fontFamily: HELV, fontSize: 14, color: C.inkSoft, display: "flex", flexDirection: "column", gap: 10 }}>
+          {mode === "signup" ? (
+            <span>Already have an account? <LinkBtn onClick={() => { setMode("signin"); setError(""); }}>Log in</LinkBtn></span>
+          ) : (
+            <span>New here? <LinkBtn onClick={() => { setMode("signup"); setError(""); }}>Create an account</LinkBtn></span>
+          )}
+          {mode === "signin" && <LinkBtn onClick={() => { setMode("forgot"); setError(""); }}>Forgot password?</LinkBtn>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinkBtn({ children, onClick }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      background: "none", border: "none", padding: 0, cursor: "pointer",
+      fontFamily: HELV, fontSize: 14, fontWeight: 700, color: C.goldDeep, textDecoration: "underline",
+    }}>{children}</button>
+  );
+}
+
+function NewPasswordScreen({ onDone }) {
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    if (pw.length < 8) return setError("Password needs at least 8 characters.");
+    setBusy(true); setError("");
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    setBusy(false);
+    if (error) setError(friendlyAuthError(error)); else onDone();
+  };
+  return (
+    <Card>
+      <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 10 }}>Choose a new password</div>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Field label="NEW PASSWORD (8+ characters)">
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" style={fieldInput()} />
+        </Field>
+        {error && <div style={{ fontFamily: HELV, fontSize: 13.5, color: "#B3261E" }}>{error}</div>}
+        <Button variant="primary" disabled={busy} style={{ justifyContent: "center" }}>{busy ? "Saving…" : "Save password"}</Button>
+      </form>
+    </Card>
+  );
+}
+
+// ---------- Testing time (locked for 6 months) ----------
+function slotUnlockDate(changedAt) {
+  if (!changedAt) return null;
+  const d = new Date(changedAt);
+  d.setMonth(d.getMonth() + 6);
+  return d;
+}
+
+function TestingSlotCard({ profile, onChangeSlot, isStaff }) {
+  const [changing, setChanging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const unlock = slotUnlockDate(profile.testingSlotChangedAt);
+  const locked = !isStaff && profile.testingSlot && unlock && unlock > new Date();
+  const label = profile.testingSlot === "morning" ? "Morning" : profile.testingSlot === "afternoon" ? "Afternoon" : "Not set";
+
+  const pick = async (slot) => {
+    if (slot === profile.testingSlot) { setChanging(false); return; }
+    setBusy(true); setError("");
+    try {
+      await onChangeSlot(slot);
+      setChanging(false);
+    } catch (e) {
+      setError(e.message || "Couldn't change your testing time.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <SectionLabel>Testing Time</SectionLabel>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: HELV, fontSize: 20, fontWeight: 700, color: C.ink }}>{label}</div>
+          {locked && (
+            <div style={{ fontFamily: HELV, fontSize: 12.5, color: C.inkSoft }}>
+              Can change on {unlock.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+            </div>
+          )}
+        </div>
+        {!locked && !changing && <Button variant="ghost" onClick={() => setChanging(true)}>Change</Button>}
+      </div>
+      {changing && (
+        <div style={{ marginTop: 12 }}>
+          <SlotPicker value={profile.testingSlot} onChange={pick} disabled={busy} />
+          <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, marginTop: 6 }}>
+            Once you switch, you can't change it again for 6 months.
+          </div>
+        </div>
+      )}
+      {error && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E", marginTop: 8 }}>{error}</div>}
+    </Card>
+  );
+}
+
+// ---------- Announcements feed ----------
+const CATEGORIES = {
+  testing: { label: "Testing", color: "#D64545" },
+  jobs: { label: "Jobs", color: "#2F9E5B" },
+  events: { label: "Events", color: "#3E7FD1" },
+  general: { label: "General", color: "#7A5CB8" },
+};
+
+function joinPhases(phases) {
+  const p = [...phases].sort();
+  if (p.length <= 1) return p.join("");
+  return p.slice(0, -1).join(", ") + " & " + p[p.length - 1];
+}
+
+function timeAgo(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function endOfToday() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 0);
+  return d.toISOString();
+}
+
+function Composer({ onPosted }) {
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState("testing");
+  const [slot, setSlot] = useState("morning");
+  const [phases, setPhases] = useState([]);
+  const [body, setBody] = useState("");
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const togglePhase = (p) => setPhases(phases.includes(p) ? phases.filter((x) => x !== p) : [...phases, p]);
+  const reset = () => { setBody(""); setLink(""); setPhases([]); setError(""); setOpen(false); };
+
+  const post = async () => {
+    setError("");
+    let text = body.trim();
+    if (cat === "testing") {
+      if (phases.length === 0) return setError("Check at least one phase.");
+      if (!text) text = `${slot === "morning" ? "Morning" : "Afternoon"} testing today: Phase${phases.length > 1 ? "s" : ""} ${joinPhases(phases)}`;
+    }
+    if (!text) return setError("Write a message first.");
+    setBusy(true);
+    const row = {
+      category: cat,
+      body: text,
+      link: link.trim() || null,
+      testing_slot: cat === "testing" ? slot : null,
+      phases: cat === "testing" ? [...phases].sort() : [],
+      expires_at: cat === "testing" ? endOfToday() : null,
+    };
+    const { error } = await supabase.from("announcements").insert(row);
+    setBusy(false);
+    if (error) return setError(error.message);
+    reset();
+    onPosted && onPosted();
+  };
+
+  if (!open) {
+    return <Button variant="gold" onClick={() => setOpen(true)}><Plus size={15} />New Post</Button>;
+  }
+
+  const chip = (on) => ({
+    padding: "8px 12px", borderRadius: 999, cursor: "pointer", fontFamily: HELV, fontSize: 13.5, fontWeight: 700,
+    border: `2px solid ${on ? C.gold : C.line}`, background: on ? C.paperDeep : "#fff", color: on ? C.ink : C.inkSoft,
+  });
+
+  return (
+    <Card style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <div style={fieldLabel()}>TYPE</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {Object.entries(CATEGORIES).map(([id, c]) => (
+            <button key={id} type="button" onClick={() => setCat(id)} style={chip(cat === id)}>{c.label}</button>
+          ))}
+        </div>
+      </div>
+      {cat === "testing" && (
+        <>
+          <div>
+            <div style={fieldLabel()}>TIME</div>
+            <SlotPicker value={slot} onChange={setSlot} />
+          </div>
+          <div>
+            <div style={fieldLabel()}>PHASES TESTING</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[2, 3, 4, 5].map((p) => (
+                <button key={p} type="button" onClick={() => togglePhase(p)} style={{ ...chip(phases.includes(p)), flex: 1 }}>
+                  {phases.includes(p) ? "✓ " : ""}{p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+      <div>
+        <div style={fieldLabel()}>{cat === "testing" ? "MESSAGE (optional — we'll write one for you)" : "MESSAGE"}</div>
+        <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)}
+          placeholder={cat === "jobs" ? "Who's hiring, the job, and how to apply" : ""}
+          style={{ ...fieldInput(), resize: "vertical" }} />
+      </div>
+      {(cat === "jobs" || cat === "events") && (
+        <div>
+          <div style={fieldLabel()}>LINK (optional)</div>
+          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" style={fieldInput()} />
+        </div>
+      )}
+      {cat === "testing" && (
+        <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft }}>Testing posts disappear from the feed at midnight.</div>
+      )}
+      {error && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E" }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button variant="primary" onClick={post} disabled={busy}><Check size={14} />{busy ? "Posting…" : "Post"}</Button>
+        <Button variant="ghost" onClick={reset}><X size={14} />Cancel</Button>
+      </div>
+    </Card>
+  );
+}
+
+function PostCard({ post, canDelete, onDelete }) {
+  const cat = CATEGORIES[post.category] || CATEGORIES.general;
+  const tags = [];
+  if (post.testing_slot) tags.push(post.testing_slot === "morning" ? "Morning" : "Afternoon");
+  (post.phases || []).forEach((p) => tags.push(`Phase ${p}`));
+  const safeLink = post.link && /^https?:\/\//i.test(post.link) ? post.link : null;
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ background: cat.color, color: "#fff", borderRadius: 999, padding: "3px 9px", fontFamily: HELV, fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
+            {cat.label.toUpperCase()}
+          </span>
+          {tags.map((t) => (
+            <span key={t} style={{ border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 8px", fontFamily: HELV, fontSize: 11, fontWeight: 600, color: C.inkSoft }}>{t}</span>
+          ))}
+        </div>
+        <span style={{ fontFamily: HELV, fontSize: 11.5, color: C.inkSoft, flexShrink: 0 }}>{timeAgo(post.created_at)}</span>
+      </div>
+      <div style={{ fontFamily: HELV, fontSize: 15, color: C.ink, lineHeight: 1.45, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{post.body}</div>
+      {safeLink && (
+        <a href={safeLink} target="_blank" rel="noopener noreferrer"
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, fontFamily: HELV, fontSize: 13.5, fontWeight: 700, color: C.goldDeep }}>
+          <ExternalLink size={13} />Open link
+        </a>
+      )}
+      {canDelete && (
+        <div style={{ textAlign: "right", marginTop: 6 }}>
+          <button onClick={() => onDelete(post.id)} aria-label="Delete post"
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.inkSoft, fontFamily: HELV, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Trash2 size={12} />Delete
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Feed({ isStaff }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("announcements")
+      .select("*")
+      .order("pinned", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) { setError("Couldn't load announcements."); setLoading(false); return; }
+    const now = Date.now();
+    setPosts((data || []).filter((p) => !p.expires_at || new Date(p.expires_at).getTime() > now));
+    setError("");
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const channel = supabase
+      .channel("announcements-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this post for everyone?")) return;
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    if (error) alert(error.message); else load();
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <SectionLabel>Announcements</SectionLabel>
+      {isStaff && <Composer onPosted={load} />}
+      {loading && <div style={{ fontFamily: HELV, color: C.inkSoft, textAlign: "center" }}>Loading…</div>}
+      {error && <Card style={{ fontFamily: HELV, fontSize: 13.5, color: C.inkSoft, textAlign: "center" }}>{error}</Card>}
+      {!loading && !error && posts.length === 0 && (
+        <Card style={{ textAlign: "center", color: C.inkSoft, fontFamily: HELV, fontSize: 13.5 }}>No announcements yet.</Card>
+      )}
+      {posts.map((p) => <PostCard key={p.id} post={p} canDelete={isStaff} onDelete={remove} />)}
+    </div>
+  );
+}
+
+// ---------- Profile header (cover photo + profile photo) ----------
+function PhotoButton({ onFile, label, style }) {
+  return (
+    <label aria-label={label} style={{
+      width: 34, height: 34, borderRadius: "50%", background: "rgba(0,0,0,0.55)", color: "#fff",
+      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", ...style,
+    }}>
+      <Camera size={16} />
+      <input type="file" accept="image/*" style={{ display: "none" }}
+        onChange={(e) => { const file = e.target.files && e.target.files[0]; e.target.value = ""; if (file) onFile(file); }} />
+    </label>
+  );
+}
+
+// ---------- "Add to Home Screen" instructions (shown until the app is installed) ----------
+function isInstalled() {
+  try {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  } catch {
+    return false;
+  }
+}
+
+function detectPlatform() {
+  const ua = navigator.userAgent || "";
+  const iOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (iOS) {
+    const otherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//i.test(ua);
+    const inApp = /FBAN|FBAV|Instagram|Line\/|Snapchat/i.test(ua);
+    return { os: "ios", safari: !otherBrowser && !inApp };
+  }
+  if (/Android/i.test(ua)) return { os: "android" };
+  return { os: "other" };
+}
+
+function Step({ n, children }) {
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: "50%", background: C.gold, color: "#fff", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center", fontFamily: HELV, fontWeight: 700, fontSize: 14,
+      }}>{n}</div>
+      <div style={{ fontFamily: HELV, fontSize: 15.5, color: C.ink, lineHeight: 1.45, paddingTop: 3 }}>{children}</div>
+    </div>
+  );
+}
+
+const iconPill = () => ({ display: "inline-flex", alignItems: "center", gap: 4, background: C.paperDeep, borderRadius: 6, padding: "1px 7px", fontWeight: 700, verticalAlign: "middle" });
+
+function InstallPrompt() {
+  const [show, setShow] = useState(() => !isInstalled());
+  const [deferred, setDeferred] = useState(null);
+  const platform = detectPlatform();
+
+  useEffect(() => {
+    const onPrompt = (e) => { e.preventDefault(); setDeferred(e); };
+    const onInstalled = () => setShow(false);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  if (!show || platform.os === "other") return null;
+
+  const installNow = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    try { await deferred.userChoice; } catch {}
+    setDeferred(null);
+  };
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Add the app to your Home Screen" style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 50,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div style={{
+        width: "100%", maxWidth: 460, background: C.card, borderRadius: "20px 20px 0 0",
+        padding: "22px 20px calc(22px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 16,
+      }}>
+        <div>
+          <div style={{ fontFamily: HELV, fontSize: 22, fontWeight: 700, color: C.ink }}>Put the app on your phone</div>
+          <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, marginTop: 4, lineHeight: 1.45 }}>
+            Takes 10 seconds. You'll get an app icon on your Home Screen, and testing alerts will work.
+          </div>
+        </div>
+
+        {platform.os === "ios" && !platform.safari && (
+          <Step n="!">
+            First, open this page in <b>Safari</b>. Copy the link (or scan the QR code again with your Camera app), then follow the steps below in Safari.
+          </Step>
+        )}
+
+        {platform.os === "ios" && (
+          <>
+            <Step n={1}>Tap the <span style={iconPill()}><Share size={14} />Share</span> button at the bottom of Safari (a square with an arrow pointing up). On some iPhones it's behind the <b>•••</b> button.</Step>
+            <Step n={2}>Scroll down and tap <span style={iconPill()}><Plus size={14} />Add to Home Screen</span></Step>
+            <Step n={3}>Tap <b>Add</b> in the top right corner.</Step>
+            <Step n={4}>Close Safari and open the app from the new icon on your Home Screen.</Step>
+          </>
+        )}
+
+        {platform.os === "android" && (deferred ? (
+          <Button variant="primary" onClick={installNow} style={{ justifyContent: "center", padding: "13px 16px", fontSize: 16 }}>
+            <Plus size={16} />Install the app
+          </Button>
+        ) : (
+          <>
+            <Step n={1}>Tap the <span style={iconPill()}><MoreVertical size={14} />menu</span> button in the top right corner of Chrome.</Step>
+            <Step n={2}>Tap <b>Add to Home screen</b> or <b>Install app</b>.</Step>
+            <Step n={3}>Tap <b>Install</b> (or <b>Add</b>), then open the app from the new icon.</Step>
+          </>
+        ))}
+
+        <button type="button" onClick={() => setShow(false)} style={{
+          background: "none", border: "none", cursor: "pointer", fontFamily: HELV, fontSize: 14, color: C.inkSoft, padding: 6,
+        }}>Not now</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App Shell ----------
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -1265,21 +1941,94 @@ export default function App() {
     setJSON("theme", id, false);
   };
   const [ready, setReady] = useState(false);
+  const [session, setSession] = useState(undefined); // undefined = still checking
+  const [recovering, setRecovering] = useState(false);
+  const [accountError, setAccountError] = useState("");
   const [profile, setProfile] = useState({ name: "", soberDate: "", bio: "", phaseStart: 2, phaseStartMonth: "" });
   const [counters, setCounters] = useState({ aa: 0, oneOnOne: 0, aaWeek: 0 });
   const [fines, setFines] = useState({ paid: 0, totalOwed: 0, log: [] });
+  const userId = session ? session.user.id : null;
 
+  // Who's signed in?
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session || null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s || null);
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load this person's data once they're signed in
+  useEffect(() => {
+    if (!userId) { setReady(false); return; }
+    let cancelled = false;
     (async () => {
-      const [p, c, f] = await Promise.all([
-        getJSON("profile:me", false, { name: "", soberDate: "", bio: "", phaseStart: 2, phaseStartMonth: "" }),
+      const [local, c, f] = await Promise.all([
+        getJSON("profile:me", false, null),
         getJSON("counters:me", false, { aa: 0, oneOnOne: 0, aaWeek: 0 }),
         getJSON("fines:me", false, { paid: 0, totalOwed: 0, log: [] }),
       ]);
-      setProfile(p); setCounters(c); setFines(f);
-      setReady(true);
+      if (cancelled) return;
+      setCounters(c); setFines(f);
+      try {
+        let { data: row, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+        if (error) throw error;
+        if (!row) {
+          const ins = await supabase.from("profiles")
+            .insert({ id: userId, full_name: (local && local.name) || "", email: session.user.email })
+            .select().single();
+          if (ins.error) throw ins.error;
+          row = ins.data;
+        }
+        // Carry over anything this phone already had saved from before accounts existed
+        const patch = {};
+        if (local) {
+          if (!row.full_name && local.name) patch.full_name = local.name;
+          if (!row.sober_date && local.soberDate) patch.sober_date = local.soberDate;
+          if (!row.bio && local.bio) patch.bio = local.bio;
+          if (!row.avatar && local.avatar) patch.avatar = local.avatar;
+          if (!row.phase_start_month && local.phaseStartMonth) {
+            patch.phase_start_month = local.phaseStartMonth;
+            patch.phase_start = Number(local.phaseStart) || 2;
+          }
+        }
+        if (Object.keys(patch).length) {
+          const up = await supabase.from("profiles").update(patch).eq("id", userId).select().single();
+          if (!up.error) row = up.data;
+        }
+        const p = profileFromRow(row);
+        if (cancelled) return;
+        setProfile(p);
+        setJSON("profile:me", p, false);
+        setAccountError("");
+      } catch (e) {
+        // Offline or server trouble: fall back to what's saved on this phone
+        if (cancelled) return;
+        if (local) setProfile({ ...profile, ...local });
+        setAccountError("Couldn't reach the server. Showing what's saved on this phone.");
+      }
+      if (!cancelled) setReady(true);
     })();
-  }, []);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const saveProfile = async (next) => {
+    const { data, error } = await supabase.from("profiles").update(rowFromProfile(next)).eq("id", userId).select().single();
+    if (error) throw error;
+    const p = profileFromRow(data);
+    setProfile(p);
+    await setJSON("profile:me", p, false);
+  };
+
+  const changeSlot = async (slot) => {
+    const { data, error } = await supabase.from("profiles").update({ testing_slot: slot }).eq("id", userId).select().single();
+    if (error) throw new Error(/6 months/.test(error.message) ? "You can only change your testing time once every 6 months." : "Couldn't change your testing time. Try again.");
+    const p = profileFromRow(data);
+    setProfile(p);
+    await setJSON("profile:me", p, false);
+  };
 
   const tabs = [
     { id: "home", label: "Home", icon: Home },
@@ -1301,23 +2050,34 @@ export default function App() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, padding: "18px 16px 100px" }}>
-          {!ready ? (
+        <div style={{ flex: 1, padding: session ? "18px 16px 100px" : "18px 16px 40px" }}>
+          {session === undefined ? (
+            <div style={{ textAlign: "center", color: C.inkSoft, fontFamily: HELV, marginTop: 60 }}>Loading…</div>
+          ) : recovering && session ? (
+            <NewPasswordScreen onDone={() => setRecovering(false)} />
+          ) : !session ? (
+            <AuthScreen />
+          ) : !ready ? (
             <div style={{ textAlign: "center", color: C.inkSoft, fontFamily: HELV, marginTop: 60 }}>Loading…</div>
           ) : (
             <>
+              {accountError && (
+                <div style={{ fontFamily: HELV, fontSize: 12.5, color: C.inkSoft, background: C.paperDeep, borderRadius: 10, padding: "8px 10px", marginBottom: 12 }}>{accountError}</div>
+              )}
               {tab === "home" && <HomeTab profile={profile} counters={counters} />}
               {tab === "meetings" && <MeetingsTab counters={counters} setCounters={setCounters} fines={fines} setFines={setFines} profile={profile} />}
               {tab === "calendar" && <CalendarTab profile={profile} />}
               {tab === "literature" && <LiteratureTab />}
               {tab === "handbook" && <HandbookTab />}
-              {tab === "profile" && <ProfileTab profile={profile} setProfile={setProfile} theme={theme} setTheme={setTheme} />}
+              {tab === "profile" && <ProfileTab profile={profile} saveProfile={saveProfile} theme={theme} setTheme={setTheme} userId={userId} onChangeSlot={changeSlot} />}
             </>
           )}
         </div>
 
+        <InstallPrompt />
+
         {/* Bottom Nav */}
-        <div style={{
+        {session && !recovering && <div style={{
           position: "fixed", bottom: 0, width: "100%", maxWidth: 460,
           background: C.ink, display: "flex", justifyContent: "space-around",
           padding: "10px 6px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.tealDeep}`
@@ -1332,7 +2092,7 @@ export default function App() {
               <span style={{ fontFamily: HELV, fontSize: 10, fontWeight: 600 }}>{label}</span>
             </button>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 // Minimal service worker — caches the app shell so it opens reliably
 // even on a flaky connection. Not a full offline data solution.
-const CACHE_NAME = "dca-shell-v2";
+const CACHE_NAME = "dca-shell-v3";
 const SHELL_FILES = ["/", "/index.html", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -21,6 +21,9 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // Only cache the app's own files. Account data, posts and photos from
+  // Supabase must always come fresh from the network.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
