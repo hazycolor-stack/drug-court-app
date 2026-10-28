@@ -461,7 +461,7 @@ const Button = ({ children, onClick, variant = "primary", style, disabled }) => 
   };
   const variants = {
     primary: { background: C.ink, color: C.paper },
-    gold: { background: C.gold, color: C.ink },
+    gold: { background: C.gold, color: "#fff" },
     ghost: { background: "transparent", color: C.ink, border: `1px solid ${C.line}` },
     teal: { background: C.teal, color: "#fff" },
   };
