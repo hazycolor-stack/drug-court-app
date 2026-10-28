@@ -664,9 +664,6 @@ function MeetingsTab({ counters, setCounters, fines, setFines, profile }) {
           </div>
         </details>
       </Card>
-
-      <SectionLabel>Court Calendar</SectionLabel>
-      <CourtCalendar phase={currentPhase} />
     </div>
   );
 }
@@ -1055,7 +1052,9 @@ function formatTime(t) {
 
 const APPT_TYPES = ["IOP", "MRT", "One-on-One Therapy", "Aftercare", "Other"];
 
-function CalendarTab() {
+function CalendarTab({ profile }) {
+  const phaseStatus = getPhaseStatus(profile.phaseStart, profile.phaseStartMonth);
+  const currentPhase = phaseStatus ? phaseStatus.phase : null;
   const [appts, setAppts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1126,6 +1125,9 @@ function CalendarTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionLabel>Court Calendar</SectionLabel>
+      <CourtCalendar phase={currentPhase} />
+
       <SectionLabel>Appointment Calendar</SectionLabel>
 
       {showForm ? (
@@ -1235,7 +1237,7 @@ export default function App() {
             <>
               {tab === "home" && <HomeTab profile={profile} counters={counters} />}
               {tab === "meetings" && <MeetingsTab counters={counters} setCounters={setCounters} fines={fines} setFines={setFines} profile={profile} />}
-              {tab === "calendar" && <CalendarTab />}
+              {tab === "calendar" && <CalendarTab profile={profile} />}
               {tab === "literature" && <LiteratureTab />}
               {tab === "handbook" && <HandbookTab />}
               {tab === "profile" && <ProfileTab profile={profile} setProfile={setProfile} />}
