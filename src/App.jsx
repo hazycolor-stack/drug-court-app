@@ -34,6 +34,70 @@ const C = {
   line: "#C7D6E6",
 };
 
+// ---------- Color themes (picked in Profile, saved on the device) ----------
+const THEMES = {
+  blue: { label: "Blue", ...C },
+  pink: { label: "Pink", ink: "#3D1A2B", inkSoft: "#8A5A72", paper: "#FBEFF4", paperDeep: "#F4DCE7", card: "#FFFAFC", gold: "#E0609A", goldDeep: "#C2427E", teal: "#B04A7A", tealDeep: "#5C2240", rust: "#8E5CC2", line: "#EBCBD9" },
+  purple: { label: "Purple", ink: "#24173F", inkSoft: "#6E5F92", paper: "#F1EDFA", paperDeep: "#E2DAF4", card: "#FBFAFE", gold: "#8456D6", goldDeep: "#6A3CC0", teal: "#5B4699", tealDeep: "#2E2152", rust: "#C2508A", line: "#D6CCEC" },
+  green: { label: "Green", ink: "#14301F", inkSoft: "#557A63", paper: "#EDF5EF", paperDeep: "#DAEADF", card: "#FAFDFB", gold: "#2F9E5B", goldDeep: "#217F46", teal: "#2E7262", tealDeep: "#163D33", rust: "#B07A2A", line: "#C8DDCF" },
+  sunset: { label: "Sunset", ink: "#3A1E10", inkSoft: "#8A6250", paper: "#FBF1EA", paperDeep: "#F4E0D2", card: "#FFFBF8", gold: "#E2763A", goldDeep: "#C45A22", teal: "#B5562E", tealDeep: "#5E2A14", rust: "#A8457A", line: "#EBD3C3" },
+  camo: { label: "Camo", ink: "#2B3020", inkSoft: "#66694D", paper: "#E4E1CF", paperDeep: "#D3CFB5", card: "#F6F4EA", gold: "#6B7B3A", goldDeep: "#4F5C27", teal: "#5C5A3A", tealDeep: "#33321F", rust: "#8A5A2E", line: "#C9C4A6",
+    bgImage: 'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Crect%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%23E4E1CF%22%2F%3E%3Cellipse%20cx%3D%2218%22%20cy%3D%2222%22%20rx%3D%2226%22%20ry%3D%2214%22%20transform%3D%22rotate%28-20%2018%2022%29%22%20fill%3D%22%23D6D2B8%22%2F%3E%3Cellipse%20cx%3D%2270%22%20cy%3D%2218%22%20rx%3D%2222%22%20ry%3D%2212%22%20transform%3D%22rotate%2830%2070%2018%29%22%20fill%3D%22%23CCC7AA%22%2F%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%2260%22%20rx%3D%2224%22%20ry%3D%2216%22%20transform%3D%22rotate%28-10%20100%2060%29%22%20fill%3D%22%23DCD8C2%22%2F%3E%3Cellipse%20cx%3D%2240%22%20cy%3D%2270%22%20rx%3D%2228%22%20ry%3D%2213%22%20transform%3D%22rotate%2825%2040%2070%29%22%20fill%3D%22%23D6D2B8%22%2F%3E%3Cellipse%20cx%3D%2215%22%20cy%3D%22105%22%20rx%3D%2220%22%20ry%3D%2212%22%20transform%3D%22rotate%2810%2015%20105%29%22%20fill%3D%22%23CCC7AA%22%2F%3E%3Cellipse%20cx%3D%2285%22%20cy%3D%22100%22%20rx%3D%2226%22%20ry%3D%2214%22%20transform%3D%22rotate%28-35%2085%20100%29%22%20fill%3D%22%23DCD8C2%22%2F%3E%3Cellipse%20cx%3D%2255%22%20cy%3D%2240%22%20rx%3D%2214%22%20ry%3D%229%22%20transform%3D%22rotate%2860%2055%2040%29%22%20fill%3D%22%23D6D2B8%22%2F%3E%3Cellipse%20cx%3D%22110%22%20cy%3D%2215%22%20rx%3D%2214%22%20ry%3D%2210%22%20transform%3D%22rotate%280%20110%2015%29%22%20fill%3D%22%23CCC7AA%22%2F%3E%3C%2Fsvg%3E")',
+    swatch: 'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%3E%3Crect%20width%3D%2260%22%20height%3D%2260%22%20fill%3D%22%238A8F5C%22%2F%3E%3Cellipse%20cx%3D%2218%22%20cy%3D%2222%22%20rx%3D%2226%22%20ry%3D%2214%22%20transform%3D%22rotate%28-20%2018%2022%29%22%20fill%3D%22%234F5C27%22%2F%3E%3Cellipse%20cx%3D%2270%22%20cy%3D%2218%22%20rx%3D%2222%22%20ry%3D%2212%22%20transform%3D%22rotate%2830%2070%2018%29%22%20fill%3D%22%236E5536%22%2F%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%2260%22%20rx%3D%2224%22%20ry%3D%2216%22%20transform%3D%22rotate%28-10%20100%2060%29%22%20fill%3D%22%232F3320%22%2F%3E%3Cellipse%20cx%3D%2240%22%20cy%3D%2270%22%20rx%3D%2228%22%20ry%3D%2213%22%20transform%3D%22rotate%2825%2040%2070%29%22%20fill%3D%22%23B5AD84%22%2F%3E%3Cellipse%20cx%3D%2215%22%20cy%3D%22105%22%20rx%3D%2220%22%20ry%3D%2212%22%20transform%3D%22rotate%2810%2015%20105%29%22%20fill%3D%22%234F5C27%22%2F%3E%3Cellipse%20cx%3D%2285%22%20cy%3D%22100%22%20rx%3D%2226%22%20ry%3D%2214%22%20transform%3D%22rotate%28-35%2085%20100%29%22%20fill%3D%22%236E5536%22%2F%3E%3Cellipse%20cx%3D%2255%22%20cy%3D%2240%22%20rx%3D%2214%22%20ry%3D%229%22%20transform%3D%22rotate%2860%2055%2040%29%22%20fill%3D%22%232F3320%22%2F%3E%3Cellipse%20cx%3D%22110%22%20cy%3D%2215%22%20rx%3D%2214%22%20ry%3D%2210%22%20transform%3D%22rotate%280%20110%2015%29%22%20fill%3D%22%23B5AD84%22%2F%3E%3C%2Fsvg%3E")' },
+};
+
+function applyTheme(id) {
+  const t = THEMES[id] || THEMES.blue;
+  const { label, swatch, ...colors } = t;
+  Object.assign(C, { bgImage: "" }, colors);
+  try {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", C.ink);
+  } catch {}
+}
+
+function loadSavedTheme() {
+  try {
+    const raw = localStorage.getItem("dca:theme");
+    const id = raw ? JSON.parse(raw) : "blue";
+    return THEMES[id] ? id : "blue";
+  } catch {
+    return "blue";
+  }
+}
+
+// Apply before the first render so there's no flash of the wrong colors
+applyTheme(loadSavedTheme());
+
+function ThemePicker({ theme, setTheme }) {
+  return (
+    <Card>
+      <SectionLabel>Theme</SectionLabel>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+        {Object.entries(THEMES).map(([id, t]) => {
+          const on = theme === id;
+          return (
+            <button key={id} type="button" aria-label={`${t.label} theme`} aria-pressed={on}
+              onClick={() => setTheme(id)}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 }}>
+              <div style={{
+                width: 42, height: 42, borderRadius: "50%",
+                background: t.swatch ? `${t.swatch} center / cover` : `linear-gradient(135deg, ${t.gold} 0 50%, ${t.ink} 50% 100%)`,
+                border: `3px solid ${on ? C.ink : "transparent"}`,
+                boxShadow: on ? `0 0 0 2px ${C.card}` : "none",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                {on && <Check size={18} color="#fff" strokeWidth={3} />}
+              </div>
+              <span style={{ fontFamily: HELV, fontSize: 11.5, fontWeight: on ? 700 : 500, color: on ? C.ink : C.inkSoft }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------- Original reflection pool (not copied from any book) ----------
@@ -915,7 +979,7 @@ function HandbookTab() {
   );
 }
 
-function ProfileTab({ profile, setProfile }) {
+function ProfileTab({ profile, setProfile, theme, setTheme }) {
   const [editing, setEditing] = useState(!profile.name);
   const [name, setName] = useState(profile.name || "");
   const [soberDate, setSoberDate] = useState(profile.soberDate || "");
@@ -1026,6 +1090,7 @@ function ProfileTab({ profile, setProfile }) {
           </div>
         )}
       </Card>
+      <ThemePicker theme={theme} setTheme={setTheme} />
       <button
         aria-label="Edit Profile"
         onClick={() => setEditing(true)}
@@ -1193,6 +1258,12 @@ function CalendarTab({ profile }) {
 // ---------- App Shell ----------
 export default function App() {
   const [tab, setTab] = useState("home");
+  const [theme, setThemeState] = useState(loadSavedTheme);
+  const setTheme = (id) => {
+    applyTheme(id);
+    setThemeState(id);
+    setJSON("theme", id, false);
+  };
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState({ name: "", soberDate: "", bio: "", phaseStart: 2, phaseStartMonth: "" });
   const [counters, setCounters] = useState({ aa: 0, oneOnOne: 0, aaWeek: 0 });
@@ -1220,7 +1291,7 @@ export default function App() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.paper, display: "flex", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: C.paper, backgroundImage: C.bgImage || "none", backgroundSize: "240px 240px", display: "flex", justifyContent: "center" }}>
       <FontLoader />
       <div style={{ width: "100%", maxWidth: 460, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
         {/* Header */}
@@ -1240,7 +1311,7 @@ export default function App() {
               {tab === "calendar" && <CalendarTab profile={profile} />}
               {tab === "literature" && <LiteratureTab />}
               {tab === "handbook" && <HandbookTab />}
-              {tab === "profile" && <ProfileTab profile={profile} setProfile={setProfile} />}
+              {tab === "profile" && <ProfileTab profile={profile} setProfile={setProfile} theme={theme} setTheme={setTheme} />}
             </>
           )}
         </div>
