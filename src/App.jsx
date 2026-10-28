@@ -157,19 +157,35 @@ function monthsBetween(startDate, now) {
   return (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
 }
 
-// startPhase: 2-5, startMonth: "YYYY-MM"
-function getPhaseStatus(startPhase, startMonth) {
-  if (!startPhase || !startMonth) return null;
-  const start = new Date(startMonth + "-01T00:00:00");
+// startPhase: 2-5, startDate: "YYYY-MM-DD" (older profiles saved just "YYYY-MM")
+function parsePhaseStart(v) {
+  if (!v) return null;
+  const iso = /^\d{4}-\d{2}$/.test(v) ? v + "-01" : v;
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d) ? null : d;
+}
+
+function addMonths(date, n) {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return d;
+}
+
+function getPhaseStatus(startPhase, startDate) {
+  const start = parsePhaseStart(startDate);
+  if (!startPhase || !start) return null;
   const now = new Date();
-  const elapsed = Math.max(0, monthsBetween(start, now));
-  const cyclesCompleted = Math.floor(elapsed / PHASE_MONTHS);
-  const currentPhase = Math.min(MAX_PHASE, startPhase + cyclesCompleted);
+  let cyclesCompleted = 0;
+  while (cyclesCompleted < 10 && addMonths(start, (cyclesCompleted + 1) * PHASE_MONTHS) <= now) cyclesCompleted++;
+  const currentPhase = Math.min(MAX_PHASE, Number(startPhase) + cyclesCompleted);
   if (currentPhase >= MAX_PHASE) {
     return { phase: MAX_PHASE, maxed: true, daysUntilNext: null, nextDate: null };
   }
-  const nextPhaseDate = new Date(start);
-  nextPhaseDate.setMonth(nextPhaseDate.getMonth() + (cyclesCompleted + 1) * PHASE_MONTHS);
+  const nextPhaseDate = addMonths(start, (cyclesCompleted + 1) * PHASE_MONTHS);
   const daysUntilNext = Math.max(0, Math.ceil((nextPhaseDate - now) / DAY_MS));
   return { phase: currentPhase, maxed: false, daysUntilNext, nextDate: nextPhaseDate };
 }
@@ -987,7 +1003,9 @@ function ProfileTab({ profile, saveProfile, theme, setTheme, userId, onChangeSlo
   const [bio, setBio] = useState(profile.bio || "");
   const [avatar, setAvatar] = useState(profile.avatar || "");
   const [phaseStart, setPhaseStart] = useState(profile.phaseStart || 2);
-  const [phaseStartMonth, setPhaseStartMonth] = useState(profile.phaseStartMonth || "");
+  const [phaseStartMonth, setPhaseStartMonth] = useState(
+    /^\d{4}-\d{2}$/.test(profile.phaseStartMonth || "") ? profile.phaseStartMonth + "-01" : (profile.phaseStartMonth || "")
+  );
 
   const initials = (profile.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
@@ -1074,8 +1092,8 @@ function ProfileTab({ profile, saveProfile, theme, setTheme, userId, onChangeSlo
               <option value={4}>Phase 4</option>
               <option value={5}>Phase 5</option>
             </select>
-            <div style={{ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 }}>PHASE START MONTH</div>
-            <input type="month" value={phaseStartMonth} onChange={e => setPhaseStartMonth(e.target.value)}
+            <div style={{ fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 }}>PHASE START DATE</div>
+            <input type="date" value={phaseStartMonth} onChange={e => setPhaseStartMonth(e.target.value)}
               style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: HELV, fontSize: 14 }} />
             <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, marginTop: 6 }}>
               You phase up every 9 months. We'll count down to your next phase automatically.
@@ -1860,6 +1878,7 @@ function InstallPrompt() {
   const [show, setShow] = useState(() => !isInstalled());
   const [deferred, setDeferred] = useState(null);
   const platform = detectPlatform();
+  const [view, setView] = useState(platform.os === "android" ? "android" : "ios");
 
   useEffect(() => {
     const onPrompt = (e) => { e.preventDefault(); setDeferred(e); };
@@ -1897,13 +1916,24 @@ function InstallPrompt() {
           </div>
         </div>
 
-        {platform.os === "ios" && !platform.safari && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, background: C.paperDeep, borderRadius: 12, padding: 4 }}>
+          {[["ios", "iPhone"], ["android", "Android"]].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setView(id)} style={{
+              padding: "9px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+              background: view === id ? C.card : "transparent",
+              boxShadow: view === id ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+              fontFamily: HELV, fontSize: 14.5, fontWeight: 700, color: view === id ? C.ink : C.inkSoft,
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {view === "ios" && platform.os === "ios" && !platform.safari && (
           <Step n="!">
             First, open this page in <b>Safari</b>. Copy the link (or scan the QR code again with your Camera app), then follow the steps below in Safari.
           </Step>
         )}
 
-        {platform.os === "ios" && (
+        {view === "ios" && (
           <>
             <Step n={1}>Tap the <span style={iconPill()}><Share size={14} />Share</span> button at the bottom of Safari (a square with an arrow pointing up). On some iPhones it's behind the <b>•••</b> button.</Step>
             <Step n={2}>Scroll down and tap <span style={iconPill()}><Plus size={14} />Add to Home Screen</span></Step>
@@ -1912,7 +1942,7 @@ function InstallPrompt() {
           </>
         )}
 
-        {platform.os === "android" && (deferred ? (
+        {view === "android" && (deferred ? (
           <Button variant="primary" onClick={installNow} style={{ justifyContent: "center", padding: "13px 16px", fontSize: 16 }}>
             <Plus size={16} />Install the app
           </Button>
@@ -1921,6 +1951,9 @@ function InstallPrompt() {
             <Step n={1}>Tap the <span style={iconPill()}><MoreVertical size={14} />menu</span> button in the top right corner of Chrome.</Step>
             <Step n={2}>Tap <b>Add to Home screen</b> or <b>Install app</b>.</Step>
             <Step n={3}>Tap <b>Install</b> (or <b>Add</b>), then open the app from the new icon.</Step>
+            <div style={{ fontFamily: HELV, fontSize: 13, color: C.inkSoft, lineHeight: 1.45 }}>
+              Using <b>Samsung Internet</b>? Tap the <b>☰</b> menu at the bottom, then <b>Add page to</b> → <b>Home screen</b>.
+            </div>
           </>
         ))}
 
