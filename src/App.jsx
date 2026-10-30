@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { getJSON, setJSON } from "./storage.js";
 import { HANDBOOK, HANDBOOK_QUICK } from "./handbook.js";
+import { FELONY_FRIENDLY_COMPANIES, FELONY_FRIENDLY_SOURCE } from "./companies.js";
 import { supabase, profileFromRow, rowFromProfile, uploadPhoto } from "./supabase.js";
 import { pushSupport, permission, enablePush, disablePush, syncPush, isSubscribed, notifyAnnouncement } from "./push.js";
 
@@ -789,7 +790,54 @@ function LiteratureTab() {
       <LinkOut title="Daily Reflections" blurb="Official daily meditation book · aa.org" url="https://www.aa.org/daily-reflections" />
       <LinkOut title="Living Sober" blurb="Practical sobriety tips · aa.org store" url="https://www.aa.org/living-sober" />
       <LinkOut title="Find a Meeting" blurb="AA meeting guide" url="https://www.aa.org/find-aa" />
+
+      <SectionLabel>Felony Friendly Companies</SectionLabel>
+      <FelonyFriendlyList />
     </div>
+  );
+}
+
+function FelonyFriendlyList() {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const list = FELONY_FRIENDLY_COMPANIES
+    .filter((c) => c.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => a.localeCompare(b));
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setOpen(!open)} style={{
+        width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left",
+      }}>
+        <div>
+          <div style={{ fontFamily: HELV, fontWeight: 700, fontSize: 16, color: C.ink }}>Companies that hire people with a record</div>
+          <div style={{ fontFamily: HELV, fontSize: 13, color: C.inkSoft }}>{FELONY_FRIENDLY_COMPANIES.length} companies · tap to {open ? "hide" : "see the list"}</div>
+        </div>
+        <ChevronDown size={20} color={C.teal} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            <Search size={16} color={C.inkSoft} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 36px", borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: HELV, fontSize: 15, color: C.ink, background: C.card }} />
+          </div>
+          {list.length === 0 ? (
+            <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, textAlign: "center", padding: 8 }}>No matches.</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 12 }}>
+              {list.map((c) => (
+                <div key={c} style={{ fontFamily: HELV, fontSize: 14, color: C.ink, padding: "7px 0", borderBottom: `1px solid ${C.line}`, lineHeight: 1.3 }}>{c}</div>
+              ))}
+            </div>
+          )}
+          <div style={{ fontFamily: HELV, fontSize: 12, color: C.inkSoft, marginTop: 12, lineHeight: 1.45 }}>
+            Hiring rules can differ by location and job, so ask when you apply. Source: {FELONY_FRIENDLY_SOURCE}.
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
