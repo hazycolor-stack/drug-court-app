@@ -790,9 +790,6 @@ function LiteratureTab() {
       <LinkOut title="Daily Reflections" blurb="Official daily meditation book · aa.org" url="https://www.aa.org/daily-reflections" />
       <LinkOut title="Living Sober" blurb="Practical sobriety tips · aa.org store" url="https://www.aa.org/living-sober" />
       <LinkOut title="Find a Meeting" blurb="AA meeting guide" url="https://www.aa.org/find-aa" />
-
-      <SectionLabel>Felony Friendly Companies</SectionLabel>
-      <FelonyFriendlyList />
     </div>
   );
 }
@@ -1005,6 +1002,9 @@ function HandbookTab() {
           </Card>
         ))}
       </div>
+
+      <SectionLabel>Felony Friendly Companies</SectionLabel>
+      <FelonyFriendlyList />
 
       <SectionLabel>Full Handbook</SectionLabel>
       <div style={{ position: "relative" }}>

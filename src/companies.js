@@ -6,10 +6,9 @@ export const FELONY_FRIENDLY_SOURCE = "therelaunchpad.com/companies · as of May
 export const FELONY_FRIENDLY_COMPANIES = [
   "3M", "AT&T", "Ace Hardware", "Adecco", "Amazon", "American Airlines", "American Express",
   "Apple", "Aramark", "AutoZone", "Avnet", "B and D Enterprises", "Bahama Breeze",
-  "Barnes & Noble", "Bed Bath & Beyond", "Best Buy", "Big Boy", "Big Lots",
-  "Black Angus Steakhouse", "Braum's", "Buffalo Wild Wings", "Burger King",
+  "Barnes & Noble", "Best Buy", "Big Boy", "Black Angus Steakhouse", "Braum's", "Buffalo Wild Wings", "Burger King",
   "Burlington Coat Factory", "Butterball Farms", "C.H. Robinson", "Caterpillar",
-  "Chance Employer", "Dayton Freight", "DHL", "Dollar General", "Dollar Tree", "Dot Foods",
+  "Dayton Freight", "DHL", "Dollar General", "Dollar Tree", "Dot Foods",
   "Dow Chemical", "Duke Energy", "eBay", "Express Employment", "Express Scripts",
   "Family Dollar", "Foot Locker", "Frito-Lay", "General Dynamics", "General Mills",
   "Georgia-Pacific", "Godfather's Pizza", "Golden Corral", "Goodwill", "Google",
