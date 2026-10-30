@@ -39,6 +39,18 @@ function currentPhase(startPhase, startDate) {
   return Math.min(MAX_PHASE, Number(startPhase) + cycles);
 }
 
+// Describe a Supabase key without revealing it (for setup errors)
+function keyKind(k) {
+  k = (k || "").trim();
+  if (k.startsWith("sb_secret_")) return "a secret key (sb_secret_)";
+  if (k.startsWith("sb_publishable_")) return "the publishable key (sb_publishable_)";
+  try {
+    const role = JSON.parse(Buffer.from(k.split(".")[1], "base64url").toString()).role;
+    if (role) return `a legacy "${role}" key`;
+  } catch {}
+  return `an unrecognized value starting "${k.slice(0, 4)}…"`;
+}
+
 function wantsIt(profile, post) {
   if (post.category === "testing") {
     if (profile.notify_testing === false) return false;
@@ -60,14 +72,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Push isn't set up on the server yet (missing environment variables)." });
   }
 
-  const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+  const db = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY.trim(), { auth: { persistSession: false } });
 
   // Only signed-in staff/admins can trigger alerts
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   const { data: who } = token ? await db.auth.getUser(token) : { data: null };
   if (!who || !who.user) return res.status(401).json({ error: "Sign in first." });
-  const { data: me } = await db.from("profiles").select("role").eq("id", who.user.id).single();
-  if (!me || !["staff", "admin"].includes(me.role)) return res.status(403).json({ error: "Staff only." });
+  const { data: me, error: meErr } = await db.from("profiles").select("role").eq("id", who.user.id).maybeSingle();
+  if (meErr) return res.status(500).json({ error: `Server couldn't read profiles (${keyKind(SUPABASE_SECRET_KEY)}): ${meErr.message}` });
+  if (!me) return res.status(500).json({ error: `Server can't see your profile. SUPABASE_SECRET_KEY in Vercel looks like ${keyKind(SUPABASE_SECRET_KEY)}; it must be the sb_secret_ key.` });
+  if (!["staff", "admin"].includes(me.role)) return res.status(403).json({ error: `Staff only (your role is "${me.role}").` });
 
   const id = Number((req.body || {}).id);
   if (!id) return res.status(400).json({ error: "Missing announcement id." });
