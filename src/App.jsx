@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Home, Users, BookOpen, FileText, User, Plus, Minus,
   DollarSign, Calendar, Search, ChevronDown, ChevronLeft, ChevronRight, ExternalLink,
-  Award, Edit2, X, Check, Trash2, Camera, Share, MoreVertical, LogOut
+  Award, Edit2, X, Check, Trash2, Camera, Share, MoreVertical, LogOut, Bell
 } from "lucide-react";
 import { getJSON, setJSON } from "./storage.js";
 import { HANDBOOK, HANDBOOK_QUICK } from "./handbook.js";
 import { supabase, profileFromRow, rowFromProfile, uploadPhoto } from "./supabase.js";
+import { pushSupport, permission, enablePush, disablePush, syncPush, isSubscribed, notifyAnnouncement } from "./push.js";
 
 // ---------- Fonts ----------
 const FontLoader = () => (
@@ -1175,13 +1176,15 @@ function ProfileTab({ profile, saveProfile, theme, setTheme, userId, onChangeSlo
         </div>
       </div>
 
+      <NotificationsCard userId={userId} />
+
       <Feed isStaff={isStaff} />
 
       <TestingSlotCard profile={profile} onChangeSlot={onChangeSlot} isStaff={isStaff} />
       <ThemePicker theme={theme} setTheme={setTheme} />
 
       <div style={{ textAlign: "center", paddingTop: 4 }}>
-        <Button variant="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={14} />Log out</Button>
+        <Button variant="ghost" onClick={async () => { try { await disablePush(); } catch {} supabase.auth.signOut(); }}><LogOut size={14} />Log out</Button>
       </div>
     </div>
   );
@@ -1612,6 +1615,93 @@ function TestingSlotCard({ profile, onChangeSlot, isStaff }) {
   );
 }
 
+// ---------- Lock-screen alerts ----------
+const ALERT_TYPES = [
+  ["notify_testing", "Testing days"],
+  ["notify_general", "Announcements"],
+  ["notify_jobs", "Job postings"],
+  ["notify_events", "Events"],
+];
+
+function NotificationsCard({ userId }) {
+  const support = pushSupport();
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [prefs, setPrefs] = useState(null);
+
+  useEffect(() => {
+    isSubscribed().then(setOn).catch(() => {});
+    if (!userId) return;
+    supabase.from("profiles").select(ALERT_TYPES.map(([k]) => k).join(",")).eq("id", userId).maybeSingle()
+      .then(({ data }) => data && setPrefs(data));
+  }, [userId]);
+
+  const turnOn = async () => {
+    setBusy(true); setError("");
+    try {
+      await enablePush();
+      setOn(true);
+    } catch (e) {
+      setError(e.message === "denied" || permission() === "denied"
+        ? "Alerts are blocked. Open your phone's Settings → Notifications → Drug Court App, turn on Allow Notifications and Sounds, then try again."
+        : "Couldn't turn on alerts. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOff = async () => {
+    setBusy(true); setError("");
+    try { await disablePush(); setOn(false); } catch { setError("Couldn't turn off alerts."); }
+    setBusy(false);
+  };
+
+  const toggle = async (key) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    const { error } = await supabase.from("profiles").update({ [key]: next[key] }).eq("id", userId);
+    if (error) { setPrefs(prefs); setError("Couldn't save that setting."); }
+  };
+
+  return (
+    <Card>
+      <SectionLabel>Alerts</SectionLabel>
+      {support === "needs-install" ? (
+        <div style={{ fontFamily: HELV, fontSize: 14, color: C.ink, lineHeight: 1.45 }}>
+          To get testing alerts on your lock screen, add this app to your Home Screen first: in Safari tap <b>Share</b>, then <b>Add to Home Screen</b>. Then open it from the new icon and come back here.
+        </div>
+      ) : support === "unsupported" ? (
+        <div style={{ fontFamily: HELV, fontSize: 14, color: C.inkSoft, lineHeight: 1.45 }}>
+          This browser can't show alerts. On iPhone, use Safari and add the app to your Home Screen. On Android, use Chrome.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div style={{ fontFamily: HELV, fontSize: 14, color: C.ink, lineHeight: 1.4 }}>
+              {on ? "Alerts are on. You'll hear a sound and see posts on your lock screen." : "Get a sound and a lock-screen alert when there's a new post, even when the app is closed."}
+            </div>
+            {on
+              ? <Button variant="ghost" onClick={turnOff} disabled={busy}>Turn off</Button>
+              : <Button variant="gold" onClick={turnOn} disabled={busy}><Bell size={14} />Turn on</Button>}
+          </div>
+          {on && prefs && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {ALERT_TYPES.map(([key, label]) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: HELV, fontSize: 14, color: C.ink, cursor: "pointer" }}>
+                  <input type="checkbox" checked={prefs[key] !== false} onChange={() => toggle(key)} style={{ width: 18, height: 18, accentColor: C.gold }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {error && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E", marginTop: 8 }}>{error}</div>}
+    </Card>
+  );
+}
+
 // ---------- Announcements feed ----------
 const CATEGORIES = {
   testing: { label: "Testing", color: "#D64545" },
@@ -1671,11 +1761,18 @@ function Composer({ onPosted }) {
       phases: cat === "testing" ? [...phases].sort() : [],
       expires_at: cat === "testing" ? endOfToday() : null,
     };
-    const { error } = await supabase.from("announcements").insert(row);
+    const { data: created, error } = await supabase.from("announcements").insert(row).select("id").single();
+    if (error) { setBusy(false); return setError(error.message); }
+    let note;
+    try {
+      const r = await notifyAnnouncement(created.id);
+      note = `Posted. Alert sent to ${r.sent || 0} phone${r.sent === 1 ? "" : "s"}.`;
+    } catch (e) {
+      note = `Posted, but the lock-screen alert didn't go out: ${e.message}`;
+    }
     setBusy(false);
-    if (error) return setError(error.message);
     reset();
-    onPosted && onPosted();
+    onPosted && onPosted(note);
   };
 
   if (!open) {
@@ -1779,6 +1876,7 @@ function PostCard({ post, canDelete, onDelete }) {
 
 function Feed({ isStaff }) {
   const [posts, setPosts] = useState([]);
+  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -1814,7 +1912,13 @@ function Feed({ isStaff }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <SectionLabel>Announcements</SectionLabel>
-      {isStaff && <Composer onPosted={load} />}
+      {isStaff && <Composer onPosted={(msg) => { load(); if (msg) setNote(msg); }} />}
+      {note && (
+        <Card style={{ fontFamily: HELV, fontSize: 13.5, color: C.ink, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: 12 }}>
+          <span>{note}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setNote("")} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkSoft }}><X size={16} /></button>
+        </Card>
+      )}
       {loading && <div style={{ fontFamily: HELV, color: C.inkSoft, textAlign: "center" }}>Loading…</div>}
       {error && <Card style={{ fontFamily: HELV, fontSize: 13.5, color: C.inkSoft, textAlign: "center" }}>{error}</Card>}
       {!loading && !error && posts.length === 0 && (
@@ -1966,8 +2070,29 @@ function InstallPrompt() {
 }
 
 // ---------- App Shell ----------
+const TAB_IDS = ["home", "meetings", "calendar", "literature", "handbook", "profile"];
+
+function tabFromUrl() {
+  try {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return TAB_IDS.includes(t) ? t : "home";
+  } catch {
+    return "home";
+  }
+}
+
 export default function App() {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState(tabFromUrl);
+
+  // Tapping a lock-screen alert while the app is already open jumps to the feed
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMsg = (e) => {
+      if (e.data && e.data.type === "open-tab" && TAB_IDS.includes(e.data.tab)) setTab(e.data.tab);
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, []);
   const [theme, setThemeState] = useState(loadSavedTheme);
   const setTheme = (id) => {
     applyTheme(id);
@@ -1992,6 +2117,11 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Keep this phone's alert address up to date
+  useEffect(() => {
+    if (userId) syncPush().catch(() => {});
+  }, [userId]);
 
   // Load this person's data once they're signed in
   useEffect(() => {

@@ -1,6 +1,6 @@
 // Minimal service worker — caches the app shell so it opens reliably
 // even on a flaky connection. Not a full offline data solution.
-const CACHE_NAME = "dca-shell-v3";
+const CACHE_NAME = "dca-shell-v4";
 const SHELL_FILES = ["/", "/index.html", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -36,6 +36,44 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => cached);
       return cached || network;
+    })
+  );
+});
+
+// ---------- Push notifications (lock-screen alerts) ----------
+// Fires even when the app is closed. The phone plays its normal
+// notification sound unless it's on silent / Do Not Disturb.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  const title = data.title || "Drug Court App";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/favicon-32.png",
+      tag: data.tag,
+      renotify: true,
+      silent: false,
+      vibrate: [200, 100, 200],
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+// Tapping the alert opens the app (or brings it to the front)
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if ("focus" in w) {
+          w.postMessage({ type: "open-tab", tab: new URL(url).searchParams.get("tab") });
+          return w.focus();
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

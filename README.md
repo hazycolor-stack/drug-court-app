@@ -17,6 +17,19 @@ The text lives in `src/handbook.js`. It was typed from photos of the printed
 handbook; obvious printer typos were corrected. Page 4 does not exist in the
 printed handbook. To fix a typo or add pages, edit that one file.
 
+## Lock-screen alerts (push notifications)
+When staff posts in the feed, everyone it applies to gets an alert with the
+phone's normal notification sound, even when the app is closed. Testing posts
+only go to people with that testing time and phase.
+
+- Each person turns alerts on from **Profile → Alerts** (iPhone: the app must
+  be added to the Home Screen first, iOS 16.4 or newer).
+- `api/notify.js` sends the alerts (a Vercel function); `public/sw.js` shows them.
+- One-time setup: run `supabase/push-notifications.sql` in Supabase, and add
+  `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `SUPABASE_SECRET_KEY` under
+  Vercel → Settings → Environment Variables. The public key must match
+  `VAPID_PUBLIC_KEY` in `src/push.js`.
+
 ## Not built yet
 There is no community feed and no photo/video upload. Those need a shared
 backend with file storage, which is a later build step.
