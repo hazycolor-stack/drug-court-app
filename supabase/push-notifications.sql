@@ -58,3 +58,9 @@ alter table public.announcements add column if not exists notified_at timestampt
 
 -- Testing alerts can be switched off too (jobs / events / general already exist)
 alter table public.profiles add column if not exists notify_testing boolean not null default true;
+
+-- The alert sender (api/notify.js) uses the secret key, which runs as
+-- service_role. Newer Supabase projects don't grant it table access by default.
+grant select, update on public.profiles to service_role;
+grant select, update on public.announcements to service_role;
+grant select, delete on public.push_subscriptions to service_role;
