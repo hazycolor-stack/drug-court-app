@@ -15,8 +15,23 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 // Register service worker so the app can load reliably once installed
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
+      // Check for a new version whenever the app is brought back to the screen
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update().catch(() => {});
+      });
+    }).catch((err) => {
       console.warn("Service worker registration failed:", err);
     });
+  });
+
+  // When a new version takes over, reload once so the screen shows it
+  // (skipped on someone's very first visit, when there's no old version)
+  const hadOldVersion = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded || !hadOldVersion) return;
+    reloaded = true;
+    window.location.reload();
   });
 }
