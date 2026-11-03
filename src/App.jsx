@@ -1441,7 +1441,7 @@ function friendlyAuthError(err) {
 }
 
 function AuthScreen() {
-  const [mode, setMode] = useState("signup"); // signup | signin | forgot | sent
+  const [mode, setMode] = useState("signin"); // signin (default) | signup | forgot | sent
   const [sentMsg, setSentMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1563,7 +1563,7 @@ function AuthScreen() {
           {mode === "signup" ? (
             <span>Already have an account? <LinkBtn onClick={() => { setMode("signin"); setError(""); }}>Log in</LinkBtn></span>
           ) : (
-            <span>New here? <LinkBtn onClick={() => { setMode("signup"); setError(""); }}>Create an account</LinkBtn></span>
+            <span>New here?<br /><LinkBtn onClick={() => { setMode("signup"); setError(""); }}>Create an account</LinkBtn></span>
           )}
           {mode === "signin" && <LinkBtn onClick={() => { setMode("forgot"); setError(""); }}>Forgot password?</LinkBtn>}
         </div>
