@@ -1505,6 +1505,11 @@ function AuthScreen() {
             Anything already saved in the app on this phone carries over.
           </div>
         )}
+        {mode === "signin" && (
+          <div style={{ fontFamily: HELV, fontSize: 13.5, color: C.inkSoft, marginBottom: 4, lineHeight: 1.45 }}>
+            Already signed up? Use the same email and password.
+          </div>
+        )}
         {mode === "sent" ? (
           <div>
             <div style={{ fontFamily: HELV, fontSize: 14.5, color: C.ink, lineHeight: 1.5, marginBottom: 14 }}>{sentMsg}</div>
