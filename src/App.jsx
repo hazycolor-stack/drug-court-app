@@ -1248,45 +1248,118 @@ function formatTime(t) {
 
 const APPT_TYPES = ["IOP", "MRT", "One-on-One Therapy", "Aftercare", "Other"];
 
-function CalendarTab({ profile }) {
+// Appointment row from the server -> what the calendar shows
+function apptFromRow(r) {
+  return { id: r.id, type: r.type, date: r.date, time: r.time ? String(r.time).slice(0, 5) : "", notes: r.notes || "" };
+}
+
+// What guests see on the Profile tab
+function GuestProfileTab({ theme, setTheme, onExit }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <Card>
+        <SectionLabel>Guest mode</SectionLabel>
+        <div style={{ fontFamily: HELV, fontSize: 14, color: C.ink, lineHeight: 1.5 }}>
+          You're looking around without an account. Anything you enter stays on this device only.
+          Profiles, testing alerts, appointment reminders and court announcements need an account.
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Button variant="gold" onClick={onExit}><User size={14} />Log in or create an account</Button>
+        </div>
+      </Card>
+      <ThemePicker theme={theme} setTheme={setTheme} />
+    </div>
+  );
+}
+
+function CalendarTab({ profile, userId }) {
   const phaseStatus = getPhaseStatus(profile.phaseStart, profile.phaseStartMonth);
   const currentPhase = phaseStatus ? phaseStatus.phase : null;
   const [appts, setAppts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState("");
+  // Signed in: appointments are saved to the account so reminders can go out.
+  // Guests (or if the server isn't reachable/set up): saved on this phone only.
+  const [onServer, setOnServer] = useState(false);
   const emptyForm = { type: "IOP", date: "", time: "", notes: "" };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const data = await getJSON("appointments:me", false, []);
-      setAppts(data);
+      const local = await getJSON("appointments:me", false, []);
+      if (userId) {
+        try {
+          // Move anything saved on this phone from before into the account
+          if (local.length) {
+            const rows = local.filter(a => a.date).map(a => ({
+              user_id: userId, type: a.type || "Other", date: a.date, time: a.time || null, notes: a.notes || "",
+            }));
+            if (rows.length) {
+              const { error: insErr } = await supabase.from("appointments").insert(rows);
+              if (insErr) throw insErr;
+            }
+            await setJSON("appointments:me", [], false);
+          }
+          const { data, error: selErr } = await supabase.from("appointments").select("*").eq("user_id", userId);
+          if (selErr) throw selErr;
+          if (cancelled) return;
+          setAppts(data.map(apptFromRow));
+          setOnServer(true);
+          setLoading(false);
+          return;
+        } catch {
+          // fall through to this phone's copy
+        }
+      }
+      if (cancelled) return;
+      setAppts(await getJSON("appointments:me", false, []));
+      setOnServer(false);
       setLoading(false);
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [userId]);
 
-  const persist = async (next) => {
+  const persistLocal = async (next) => {
     setAppts(next);
     await setJSON("appointments:me", next, false);
   };
 
-  const startAdd = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
-  const startEdit = (a) => { setForm({ type: a.type, date: a.date, time: a.time || "", notes: a.notes || "" }); setEditingId(a.id); setShowForm(true); };
+  const startAdd = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); setError(""); };
+  const startEdit = (a) => { setForm({ type: a.type, date: a.date, time: a.time || "", notes: a.notes || "" }); setEditingId(a.id); setShowForm(true); setError(""); };
   const cancelForm = () => { setShowForm(false); setEditingId(null); setForm(emptyForm); };
 
   const save = async () => {
     if (!form.date) return;
-    if (editingId) {
-      await persist(appts.map(a => a.id === editingId ? { ...a, ...form } : a));
+    setError("");
+    if (onServer) {
+      const row = { type: form.type, date: form.date, time: form.time || null, notes: form.notes || "" };
+      const q = editingId
+        ? supabase.from("appointments").update(row).eq("id", editingId).select().single()
+        : supabase.from("appointments").insert({ ...row, user_id: userId }).select().single();
+      const { data, error: err } = await q;
+      if (err) { setError("Couldn't save. Check your connection and try again."); return; }
+      const saved = apptFromRow(data);
+      setAppts(editingId ? appts.map(a => a.id === editingId ? saved : a) : [...appts, saved]);
+    } else if (editingId) {
+      await persistLocal(appts.map(a => a.id === editingId ? { ...a, ...form } : a));
     } else {
-      await persist([...appts, { id: Date.now() + "-" + Math.random().toString(36).slice(2), ...form }]);
+      await persistLocal([...appts, { id: Date.now() + "-" + Math.random().toString(36).slice(2), ...form }]);
     }
     cancelForm();
   };
 
   const remove = async (id) => {
-    await persist(appts.filter(a => a.id !== id));
+    setError("");
+    if (onServer) {
+      const { error: err } = await supabase.from("appointments").delete().eq("id", id);
+      if (err) { setError("Couldn't delete. Try again."); return; }
+      setAppts(appts.filter(a => a.id !== id));
+    } else {
+      await persistLocal(appts.filter(a => a.id !== id));
+    }
   };
 
   const labelStyle = { fontFamily: HELV, fontSize: 12, fontWeight: 600, color: C.inkSoft, marginBottom: 4 };
@@ -1360,7 +1433,19 @@ function CalendarTab({ profile }) {
         <Button variant="gold" onClick={startAdd}><Plus size={15} />Add Appointment</Button>
       )}
 
-      {loading && <div style={{ fontFamily: HELV, color: C.inkSoft, textAlign: "center" }}>Loading…</div>}
+      {error && <div style={{ fontFamily: HELV, fontSize: 13, color: "#B3261E" }}>{error}</div>}
+      {!loading && (
+        <div style={{ fontFamily: HELV, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4, display: "flex", gap: 6, alignItems: "flex-start" }}>
+          <Bell size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{onServer
+            ? "You'll get a reminder the morning before and the morning of each appointment. Make sure Alerts are turned on in your Profile."
+            : userId
+              ? "Saved on this phone. Reminders will start once your appointments can be saved to your account."
+              : "Guest mode: appointments are saved on this phone only, and reminders need an account."}</span>
+        </div>
+      )}
+
+      {loading &&<div style={{ fontFamily: HELV, color: C.inkSoft, textAlign: "center" }}>Loading…</div>}
 
       {!loading && (
         <>
@@ -1440,7 +1525,7 @@ function friendlyAuthError(err) {
   return m;
 }
 
-function AuthScreen() {
+function AuthScreen({ onGuest }) {
   const [mode, setMode] = useState("signin"); // signin (default) | signup | forgot | sent
   const [sentMsg, setSentMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1573,6 +1658,14 @@ function AuthScreen() {
           {mode === "signin" && <LinkBtn onClick={() => { setMode("forgot"); setError(""); }}>Forgot password?</LinkBtn>}
         </div>
       )}
+      {mode !== "sent" && onGuest && (
+        <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 14, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <Button variant="ghost" onClick={onGuest}>Continue as guest</Button>
+          <div style={{ fontFamily: HELV, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4, maxWidth: 300 }}>
+            Look around the app without an account. Nothing is saved to an account, and alerts and announcements need one.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1674,6 +1767,7 @@ const ALERT_TYPES = [
   ["notify_general", "Announcements"],
   ["notify_jobs", "Job postings"],
   ["notify_events", "Events"],
+  ["notify_appointments", "Appointment reminders"],
 ];
 
 function NotificationsCard({ userId }) {
@@ -1686,8 +1780,16 @@ function NotificationsCard({ userId }) {
   useEffect(() => {
     isSubscribed().then(setOn).catch(() => {});
     if (!userId) return;
-    supabase.from("profiles").select(ALERT_TYPES.map(([k]) => k).join(",")).eq("id", userId).maybeSingle()
-      .then(({ data }) => data && setPrefs(data));
+    const cols = ALERT_TYPES.map(([k]) => k);
+    supabase.from("profiles").select(cols.join(",")).eq("id", userId).maybeSingle()
+      .then(({ data, error }) => {
+        if (data) return setPrefs(data);
+        // Older database without the appointments column yet: show the rest
+        if (error) {
+          supabase.from("profiles").select(cols.filter(k => k !== "notify_appointments").join(",")).eq("id", userId).maybeSingle()
+            .then(({ data: d }) => d && setPrefs({ ...d, notify_appointments: undefined }));
+        }
+      });
   }, [userId]);
 
   const turnOn = async () => {
@@ -1740,7 +1842,7 @@ function NotificationsCard({ userId }) {
           </div>
           {on && prefs && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {ALERT_TYPES.map(([key, label]) => (
+              {ALERT_TYPES.filter(([key]) => prefs[key] !== undefined).map(([key, label]) => (
                 <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: HELV, fontSize: 14, color: C.ink, cursor: "pointer" }}>
                   <input type="checkbox" checked={prefs[key] !== false} onChange={() => toggle(key)} style={{ width: 18, height: 18, accentColor: C.gold }} />
                   {label}
@@ -2154,6 +2256,14 @@ export default function App() {
   };
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(undefined); // undefined = still checking
+  // Guest = looking around without an account (e.g. staff previewing the app)
+  const [guest, setGuestState] = useState(() => {
+    try { return localStorage.getItem("dca:guest") === "true"; } catch { return false; }
+  });
+  const setGuest = (on) => {
+    setGuestState(on);
+    try { localStorage.setItem("dca:guest", on ? "true" : "false"); } catch {}
+  };
   const [recovering, setRecovering] = useState(false);
   const [accountError, setAccountError] = useState("");
   const [profile, setProfile] = useState({ name: "", soberDate: "", bio: "", phaseStart: 2, phaseStartMonth: "" });
@@ -2166,6 +2276,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => setSession(data.session || null));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s || null);
+      if (s) setGuest(false);
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
     });
     return () => subscription.unsubscribe();
@@ -2178,8 +2289,23 @@ export default function App() {
 
   // Load this person's data once they're signed in
   useEffect(() => {
-    if (!userId) { setReady(false); return; }
     let cancelled = false;
+    if (!userId) {
+      if (!guest) { setReady(false); return; }
+      (async () => {
+        const [local, c, f] = await Promise.all([
+          getJSON("profile:me", false, null),
+          getJSON("counters:me", false, { aa: 0, oneOnOne: 0, aaWeek: 0 }),
+          getJSON("fines:me", false, { paid: 0, totalOwed: 0, log: [] }),
+        ]);
+        if (cancelled) return;
+        setCounters(c); setFines(f);
+        setProfile({ name: "", soberDate: "", bio: "", phaseStart: 2, phaseStartMonth: "", ...(local || {}), role: "guest" });
+        setAccountError("");
+        setReady(true);
+      })();
+      return () => { cancelled = true; };
+    }
     (async () => {
       const [local, c, f] = await Promise.all([
         getJSON("profile:me", false, null),
@@ -2229,9 +2355,10 @@ export default function App() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, guest]);
 
   const saveProfile = async (next) => {
+    if (!userId) { setProfile(next); await setJSON("profile:me", next, false); return; }
     const { data, error } = await supabase.from("profiles").update(rowFromProfile(next)).eq("id", userId).select().single();
     if (error) throw error;
     const p = profileFromRow(data);
@@ -2267,13 +2394,13 @@ export default function App() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, padding: session ? "18px 16px 100px" : "18px 16px 40px" }}>
+        <div style={{ flex: 1, padding: session || guest ? "18px 16px 100px" : "18px 16px 40px" }}>
           {session === undefined ? (
             <div style={{ textAlign: "center", color: C.inkSoft, fontFamily: HELV, marginTop: 60 }}>Loading…</div>
           ) : recovering && session ? (
             <NewPasswordScreen onDone={() => setRecovering(false)} />
-          ) : !session ? (
-            <AuthScreen />
+          ) : !session && !guest ? (
+            <AuthScreen onGuest={() => setGuest(true)} />
           ) : !ready ? (
             <div style={{ textAlign: "center", color: C.inkSoft, fontFamily: HELV, marginTop: 60 }}>Loading…</div>
           ) : (
@@ -2283,10 +2410,12 @@ export default function App() {
               )}
               {tab === "home" && <HomeTab profile={profile} counters={counters} />}
               {tab === "meetings" && <MeetingsTab counters={counters} setCounters={setCounters} fines={fines} setFines={setFines} profile={profile} />}
-              {tab === "calendar" && <CalendarTab profile={profile} />}
+              {tab === "calendar" && <CalendarTab profile={profile} userId={userId} />}
               {tab === "literature" && <LiteratureTab />}
               {tab === "handbook" && <HandbookTab />}
-              {tab === "profile" && <ProfileTab profile={profile} saveProfile={saveProfile} theme={theme} setTheme={setTheme} userId={userId} onChangeSlot={changeSlot} />}
+              {tab === "profile" && (userId
+                ? <ProfileTab profile={profile} saveProfile={saveProfile} theme={theme} setTheme={setTheme} userId={userId} onChangeSlot={changeSlot} />
+                : <GuestProfileTab theme={theme} setTheme={setTheme} onExit={() => { setGuest(false); setTab("home"); }} />)}
             </>
           )}
         </div>
@@ -2294,7 +2423,7 @@ export default function App() {
         <InstallPrompt />
 
         {/* Bottom Nav */}
-        {session && !recovering && <div style={{
+        {(session || guest) && !recovering && <div style={{
           position: "fixed", bottom: 0, width: "100%", maxWidth: 460,
           background: C.ink, display: "flex", justifyContent: "space-around",
           padding: "10px 6px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${C.tealDeep}`
